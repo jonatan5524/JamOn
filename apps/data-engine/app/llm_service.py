@@ -10,7 +10,7 @@ client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 AUDIO_FEATURES_MODEL_NAME = "gemini-flash-latest"
 PLAYLIST_GENERATION_MODEL_NAME = "gemini-flash-latest"
-EMBEDDING_MODEL_NAME = "text-embedding-004"
+EMBEDDING_MODEL_NAME = "gemini-embedding-2-preview"
 
 def load_prompt(filename: str) -> str:
     prompt_path = os.path.join(os.path.dirname(__file__), "prompts", filename)

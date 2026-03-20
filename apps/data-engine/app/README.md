@@ -27,7 +27,7 @@ It demonstrates the "Text-ification" RAG approach using Gemini 1.5 Flash and Chr
    ```
 
 4. Set up your API Key:
-   Create a `.env` file in this directory (`apps/data-engine/poc/.env`) and add your key:
+   Create a `.env` file in this directory (`apps/data-engine/app/.env`) and add your key:
    ```
    GEMINI_API_KEY=your_actual_api_key_here
    ```

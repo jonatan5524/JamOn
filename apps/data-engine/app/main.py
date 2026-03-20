@@ -3,6 +3,9 @@ import sys
 import json
 from dotenv import load_dotenv
 
+# Load environment variables before importing other local modules
+load_dotenv()
+
 # Add current directory to sys.path to import local modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -11,9 +14,6 @@ import llm_service
 from rag_engine import RagEngine
 
 def main():
-    # Load environment variables
-    load_dotenv()
-    
     if not os.environ.get("GEMINI_API_KEY"):
         print("Error: GEMINI_API_KEY not found in environment variables.")
         print("Please set it in a .env file or export it.")
@@ -39,7 +39,7 @@ def main():
     rag.add_songs(songs_with_features, MOCK_LYRICS)
 
     # 3. Define Mock Event
-    mock_event = "A chill late night coding session with lo-fi vibes and deep focus."
+    mock_event = "A sad mood for a funeral."
     print(f"\n3. Mock Event: '{mock_event}'")
 
     # 4. Query Vector DB

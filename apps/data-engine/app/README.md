@@ -34,6 +34,19 @@ It demonstrates the "Text-ification" RAG approach using Gemini 1.5 Flash and Chr
 
 ## Running the POC
 
+Optional: start the Node lyrics server first if you want real lyrics from Genius.
+
+```bash
+cd apps/lyrics-server
+npm start
+```
+
+Then set the Python app to use it:
+
+```bash
+export LYRICS_SERVICE_URL=http://localhost:3001
+```
+
 Run the main script:
 ```bash
 python main.py
@@ -41,9 +54,10 @@ python main.py
 
 ## How it Works
 
-1. **Mock Data**: Loads 20 random songs and their lyrics.
-2. **Audio Feature Extraction**: Sends the songs to `gemini-1.5-flash` to generate descriptive tags (Energy, Mood, Vibe) instead of raw numbers.
-3. **Vectorization**: Combines the generated tags and lyrics snippets into a single text block and embeds it using `text-embedding-004`.
-4. **Indexing**: Stores the embeddings and metadata in a local ChromaDB instance.
-5. **Retrieval**: Queries the database with a mock event description ("A chill late night coding session...") to find the most semantically relevant songs.
-6. **Playlist Generation**: Sends the retrieved context songs and the event description to `gemini-1.5-flash` to generate a curated playlist, potentially adding new suggestions.
+1. **Mock Data**: Loads 20 sample songs.
+2. **Lyrics Fetching**: Tries to fetch lyrics from the local Node Genius server. If the service is unavailable or a song has no lyrics result, the POC continues with an empty lyrics string for that track.
+3. **Audio Feature Extraction**: Sends the songs to `gemini-1.5-flash` to generate descriptive tags (Energy, Mood, Vibe) instead of raw numbers.
+4. **Vectorization**: Combines the generated tags and lyrics snippets into a single text block and embeds it using `gemini-embedding-2-preview`.
+5. **Indexing**: Stores the embeddings and metadata in a local ChromaDB instance.
+6. **Retrieval**: Queries the database with a mock event description ("A chill late night coding session...") to find the most semantically relevant songs.
+7. **Playlist Generation**: Sends the retrieved context songs and the event description to `gemini-1.5-flash` to generate a curated playlist, potentially adding new suggestions.

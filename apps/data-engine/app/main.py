@@ -4,13 +4,15 @@ import json
 from dotenv import load_dotenv
 
 # Load environment variables before importing other local modules
-load_dotenv()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 # Add current directory to sys.path to import local modules
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(BASE_DIR)
 
-from data.mock_data import MOCK_SONGS, MOCK_LYRICS
+from data.mock_data import MOCK_SONGS
 import llm_service
+from lyrics_service import fetch_lyrics_map
 from rag_engine import RagEngine
 
 def main():
@@ -33,10 +35,18 @@ def main():
     print(f"Generated features for {len(songs_with_features)} songs.")
     print("Sample feature:", json.dumps(songs_with_features[0], indent=2))
 
+    print("\nFetching lyrics...")
+    lyrics_map = fetch_lyrics_map(MOCK_SONGS)
+    lyrics_found = sum(1 for lyrics in lyrics_map.values() if lyrics)
+    if lyrics_found:
+        print(f"Fetched lyrics for {lyrics_found} songs from lyrics service.")
+    else:
+        print("No lyrics were fetched from the lyrics service. Continuing without lyrics.")
+
     # 2. Index Songs in Vector DB
     print("\n2. Indexing Songs into Vector DB...")
     rag = RagEngine()
-    rag.add_songs(songs_with_features, MOCK_LYRICS)
+    rag.add_songs(songs_with_features, lyrics_map)
 
     # 3. Define Mock Event
     mock_event = "A sad mood for a funeral."

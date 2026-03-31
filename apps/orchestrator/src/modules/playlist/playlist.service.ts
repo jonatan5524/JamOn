@@ -1,8 +1,8 @@
-import {Injectable, Logger, HttpException, HttpStatus} from '@nestjs/common';
-import {SpotifyService} from '../spotify/spotify.service';
-import {DataEngineService} from '../data-engine/data-engine.service';
-import {CreatePlaylistDto} from './dto/create-playlist.dto';
-import {PlaylistResponseDto, PlaylistError} from './dto/playlist-response.dto';
+import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { SpotifyService } from '../spotify/spotify.service';
+import { DataEngineService } from '../data-engine/data-engine.service';
+import { CreatePlaylistDto } from './dto/create-playlist.dto';
+import { PlaylistResponseDto, PlaylistError } from './dto/playlist-response.dto';
 
 @Injectable()
 export class PlaylistService {

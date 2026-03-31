@@ -79,7 +79,8 @@ The Python service (`data-engine`) is internal and exposes:
 ├── apps/
 │   ├── orchestrator/ (NestJS)
 │   │   ├── src/modules/spotify/ (External API calls)
-│   │   └── src/modules/playlist-resolver/ (Search logic)
+│   │   ├── src/modules/data-engine/ (Data-engine client)
+│   │   └── src/modules/playlist/ (Playlist orchestration)
 │   └── data-engine/ (Python)
 │       ├── app/services/scraper.py
 │       ├── app/services/llm_tagger.py (Gemini integration)

@@ -52,6 +52,39 @@ Run the main script:
 python main.py
 ```
 
+## Running the FastAPI Server (server.py)
+
+`server.py` exposes a REST API for the data engine (used by the NestJS orchestrator).
+
+1. Make sure your `.env` file is in place with `GEMINI_API_KEY` set (see Setup above).
+
+2. Optionally, start the lyrics server first and set its URL (see above).
+
+3. Start the server with Uvicorn:
+   ```bash
+   uvicorn server:app --host 127.0.0.1 --port 8000 --reload
+   ```
+
+4. The API will be available at `http://127.0.0.1:8000`.
+   Open `http://127.0.0.1:8000/docs` for the interactive Swagger UI.
+
+### Available Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/recommend` | Generate a playlist recommendation for an event description |
+
+**Example `/recommend` request:**
+```json
+{
+  "event_description": "A chill late night coding session",
+  "songs": [
+    { "title": "Blinding Lights", "artist": "The Weeknd" },
+    { "title": "Levitating", "artist": "Dua Lipa" }
+  ]
+}
+```
+
 ## How it Works
 
 1. **Mock Data**: Loads 20 sample songs.

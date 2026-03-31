@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import {SimplifiedTrack} from "../spotify/spotify.types";
 
 export interface RecommendedSong {
   title: string;
@@ -14,12 +15,13 @@ export class DataEngineService {
 
   constructor(private readonly httpService: HttpService) {}
 
-  getRecommendations = async (eventDescription: string): Promise<RecommendedSong[]> => {
+  getRecommendations = async (eventDescription: string, topTracks: SimplifiedTrack[]): Promise<RecommendedSong[]> => {
     this.logger.log(`Requesting recommendations for: "${eventDescription}"`);
 
     const { data } = await firstValueFrom(
       this.httpService.post<RecommendedSong[]>('/recommend', {
         event_description: eventDescription,
+        songs: topTracks
       }),
     );
 

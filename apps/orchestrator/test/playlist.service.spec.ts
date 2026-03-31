@@ -15,6 +15,7 @@ describe('PlaylistService', () => {
         {
           provide: SpotifyService,
           useValue: {
+            getTopTracks: jest.fn(),
             searchTrack: jest.fn(),
             createPlaylist: jest.fn(),
             addTracksToPlaylist: jest.fn(),
@@ -34,9 +35,12 @@ describe('PlaylistService', () => {
     service = module.get(PlaylistService);
     spotifyService = module.get(SpotifyService);
     dataEngineService = module.get(DataEngineService);
+
+    spotifyService.getTopTracks.mockResolvedValue([{ title: 'Mock Top', artist: 'Mock Artist' }]);
   });
 
   it('should create a playlist end-to-end', async () => {
+    spotifyService.getTopTracks.mockResolvedValue([{ title: 'Top', artist: 'Artist' }]);
     dataEngineService.getRecommendations.mockResolvedValue([
       { title: 'Song A', artist: 'Artist A', is_new: false },
       { title: 'Song B', artist: 'Artist B', is_new: true },

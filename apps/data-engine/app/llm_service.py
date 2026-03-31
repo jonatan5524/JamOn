@@ -8,8 +8,8 @@ from typing import List, Dict, Any
 # Ensure GEMINI_API_KEY is set in your environment variables
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-AUDIO_FEATURES_MODEL_NAME = "gemini-flash-latest"
-PLAYLIST_GENERATION_MODEL_NAME = "gemini-flash-latest"
+AUDIO_FEATURES_MODEL_NAME = "gemini-2.5-flash"
+PLAYLIST_GENERATION_MODEL_NAME = "gemini-2.5-flash"
 EMBEDDING_MODEL_NAME = "gemini-embedding-2-preview"
 
 def load_prompt(filename: str) -> str:

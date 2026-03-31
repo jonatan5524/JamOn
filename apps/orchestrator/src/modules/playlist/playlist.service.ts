@@ -18,7 +18,7 @@ export class PlaylistService {
         accessToken: string,
         dto: CreatePlaylistDto,
     ): Promise<PlaylistResponseDto> {
-        const topTracks = await this.spotifyService.getTopTracks(accessToken, 10);
+        const topTracks = await this.spotifyService.getTopTracks(accessToken, 15);
         const songs = await this.dataEngineService.getRecommendations(dto.eventDescription, topTracks);
 
         if (!songs.length) {

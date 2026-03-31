@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import {SimplifiedTrack} from "../spotify/spotify.types";
+import { SimplifiedTrack } from '../spotify/spotify.types';
 
 export interface RecommendedSong {
   title: string;

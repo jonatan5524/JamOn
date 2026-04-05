@@ -1,10 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import {Injectable, Logger} from '@nestjs/common';
+import {HttpService} from '@nestjs/axios';
+import {firstValueFrom} from 'rxjs';
 import {
+  SimplifiedTrack,
   SpotifyPlaylist,
-  SpotifySearchResponse,
   SpotifyPlaylistResponse,
+  SpotifySearchResponse,
+  SpotifyTopTracksResponse,
 } from './spotify.types';
 
 @Injectable()
@@ -35,6 +37,19 @@ export class SpotifyService {
       this.logger.error(`Spotify ${method.toUpperCase()} ${path} failed: ${error?.response?.status} ${error?.response?.data?.error?.message || error.message}`);
       throw error;
     }
+  };
+
+  getTopTracks = async (accessToken: string, limit: number = 50): Promise<SimplifiedTrack[]> => {
+    this.logger.log(`Fetching user's top ${limit} tracks`);
+    const data = await this.spotifyRequest<SpotifyTopTracksResponse>(
+      accessToken,
+      'get',
+      `/me/top/tracks?limit=${limit}`,
+    );
+    return data.items.map((track) => ({
+      title: track.name,
+      artist: track.artists[0]?.name || '',
+    }));
   };
 
   searchTrack = async (accessToken: string, title: string, artist: string): Promise<string | null> => {

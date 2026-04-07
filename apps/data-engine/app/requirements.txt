@@ -4,3 +4,4 @@ python-dotenv
 dotenv
 fastapi
 uvicorn
+tenacity

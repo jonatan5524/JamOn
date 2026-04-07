@@ -8,14 +8,43 @@ load_dotenv(os.path.join(BASE_DIR, ".env"))
 sys.path.append(BASE_DIR)
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List
 
 import llm_service
+from llm_service import AIServiceUnavailableError
+from google.genai import errors
 from lyrics_service import fetch_lyrics_map
 from rag_engine import RagEngine
 
 app = FastAPI(title="JamOn Data Engine")
+
+@app.exception_handler(AIServiceUnavailableError)
+async def ai_service_unavailable_handler(request, exc):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "AI Service currently unavailable (Circuit Breaker OPEN)"},
+    )
+
+@app.exception_handler(errors.ClientError)
+async def client_error_handler(request, exc):
+    if exc.code == 429:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Gemini API Rate Limit Exceeded"},
+        )
+    return JSONResponse(
+        status_code=exc.code or 400,
+        content={"detail": exc.message or str(exc)},
+    )
+
+@app.exception_handler(errors.ServerError)
+async def server_error_handler(request, exc):
+    return JSONResponse(
+        status_code=502,
+        content={"detail": f"Gemini API Server Error: {exc.message or str(exc)}"},
+    )
 
 
 class Song(BaseModel):

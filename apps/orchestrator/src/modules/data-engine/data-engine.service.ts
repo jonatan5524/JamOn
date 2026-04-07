@@ -30,18 +30,16 @@ export class DataEngineService {
       this.logger.log(`Received ${data.length} recommendations`);
       return data;
     } catch (error: any) {
-      if (error.response) {
-        const status = error.response.status;
-        if (status === 429 || status === 503 || status === 502) {
-          this.logger.warn(`AI service busy or unavailable: ${status}`);
-          throw new HttpException(
-            {
-              error: PlaylistError.AI_SERVICE_BUSY,
-              message: 'The AI engine is currently at capacity or unavailable. Please try again in a minute.',
-            },
-            HttpStatus.TOO_MANY_REQUESTS,
-          );
-        }
+      const status = error.response?.status;
+      if (status === 429 || status === 503 || status === 502) {
+        this.logger.warn(`AI service busy or unavailable: ${status}`);
+        throw new HttpException(
+          {
+            error: PlaylistError.AI_SERVICE_BUSY,
+            message: 'The AI engine is currently at capacity or unavailable. Please try again in a minute.',
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
       }
       this.logger.error('Error calling data-engine:', error.message);
       throw error;

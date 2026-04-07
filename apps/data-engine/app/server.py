@@ -42,7 +42,7 @@ async def client_error_handler(request, exc):
 @app.exception_handler(errors.ServerError)
 async def server_error_handler(request, exc):
     return JSONResponse(
-        status_code=502,
+        status_code=503,
         content={"detail": f"Gemini API Server Error: {exc.message or str(exc)}"},
     )
 

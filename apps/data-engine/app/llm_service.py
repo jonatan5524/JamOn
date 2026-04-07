@@ -1,10 +1,16 @@
 import os
 import json
 import time
+import threading
+import logging
 from google import genai
 from google.genai import types, errors
 from typing import List, Dict, Any
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Configure Gemini API
 # Ensure GEMINI_API_KEY is set in your environment variables
@@ -16,33 +22,39 @@ EMBEDDING_MODEL_NAME = "gemini-embedding-2-preview"
 
 class CircuitBreaker:
     _instance = None
+    _lock = threading.Lock()
+
     def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(CircuitBreaker, cls).__new__(cls)
-            cls._instance.state = "CLOSED"
-            cls._instance.failure_count = 0
-            cls._instance.last_failure_time = 0
-            cls._instance.recovery_timeout = 60 # seconds
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super(CircuitBreaker, cls).__new__(cls)
+                cls._instance.state = "CLOSED"
+                cls._instance.failure_count = 0
+                cls._instance.last_failure_time = 0
+                cls._instance.recovery_timeout = 60 # seconds
         return cls._instance
 
     def record_failure(self):
-        self.failure_count += 1
-        self.last_failure_time = time.time()
-        if self.failure_count >= 3:
-            self.state = "OPEN"
-            print("Circuit Breaker OPENed!")
+        with self._lock:
+            self.failure_count += 1
+            self.last_failure_time = time.time()
+            if self.failure_count >= 3:
+                self.state = "OPEN"
+                logger.warning("Circuit Breaker OPENed!")
 
     def record_success(self):
-        self.failure_count = 0
-        self.state = "CLOSED"
+        with self._lock:
+            self.failure_count = 0
+            self.state = "CLOSED"
 
     def is_open(self):
-        if self.state == "OPEN":
-            if time.time() - self.last_failure_time > self.recovery_timeout:
-                self.state = "HALF-OPEN"
-                return False
-            return True
-        return False
+        with self._lock:
+            if self.state == "OPEN":
+                if time.time() - self.last_failure_time > self.recovery_timeout:
+                    self.state = "HALF-OPEN"
+                    return False
+                return True
+            return False
 
 cb = CircuitBreaker()
 

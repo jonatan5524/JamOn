@@ -23,13 +23,13 @@ export class AuthController {
       return null;
     }
 
-    const encodedName = `${name}=`;
+    const cookiePrefix = `${name}=`;
     const cookie = cookieHeader
       .split(";")
       .map((part) => part.trim())
-      .find((part) => part.startsWith(encodedName));
+      .find((part) => part.startsWith(cookiePrefix));
 
-    return cookie ? decodeURIComponent(cookie.slice(encodedName.length)) : null;
+    return cookie ? decodeURIComponent(cookie.slice(cookiePrefix.length)) : null;
   }
 
   @Get("spotify/authorize")
@@ -84,7 +84,8 @@ export class AuthController {
 
     // Redirect to client with token in hash
     const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
-    const redirectUrl = new URL("/login", clientUrl);
+    const redirectUrl = new URL(clientUrl);
+    redirectUrl.pathname = "/login";
     redirectUrl.hash = `access_token=${tokenResponse.access_token}&token_type=Bearer&expires_in=${tokenResponse.expires_in}`;
 
     res.redirect(redirectUrl.toString());

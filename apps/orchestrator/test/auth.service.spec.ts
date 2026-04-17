@@ -38,9 +38,9 @@ describe("AuthService", () => {
       ],
     }).compile();
 
+    module.useLogger(false);
     service = module.get(AuthService);
     httpService = module.get(HttpService);
-    module.useLogger(false);
   });
 
   afterEach(() => {

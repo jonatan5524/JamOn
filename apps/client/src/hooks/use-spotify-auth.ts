@@ -8,6 +8,7 @@ interface TokenData {
 
 const OAUTH_STORAGE_KEY = "jamon_spotify_token";
 const TOKEN_EXPIRY_KEY = "jamon_token_expiry";
+const tokenStorage = sessionStorage;
 
 export const useSpotifyAuth = () => {
   const navigate = useNavigate();
@@ -31,8 +32,8 @@ export const useSpotifyAuth = () => {
           accessToken,
           expiresIn: expiresIn ? parseInt(expiresIn, 10) : 3600,
         };
-        localStorage.setItem(OAUTH_STORAGE_KEY, JSON.stringify(tokenData));
-        localStorage.setItem(
+        tokenStorage.setItem(OAUTH_STORAGE_KEY, JSON.stringify(tokenData));
+        tokenStorage.setItem(
           TOKEN_EXPIRY_KEY,
           (Date.now() + parseInt(expiresIn || "3600", 10) * 1000).toString(),
         );
@@ -63,8 +64,8 @@ export const useSpotifyAuth = () => {
   };
 
   const getAccessToken = (): string | null => {
-    const tokenJson = localStorage.getItem(OAUTH_STORAGE_KEY);
-    const expiryTime = localStorage.getItem(TOKEN_EXPIRY_KEY);
+    const tokenJson = tokenStorage.getItem(OAUTH_STORAGE_KEY);
+    const expiryTime = tokenStorage.getItem(TOKEN_EXPIRY_KEY);
 
     if (!tokenJson || !expiryTime) {
       return null;
@@ -72,8 +73,8 @@ export const useSpotifyAuth = () => {
 
     // Check if token has expired
     if (Date.now() > parseInt(expiryTime, 10)) {
-      localStorage.removeItem(OAUTH_STORAGE_KEY);
-      localStorage.removeItem(TOKEN_EXPIRY_KEY);
+      tokenStorage.removeItem(OAUTH_STORAGE_KEY);
+      tokenStorage.removeItem(TOKEN_EXPIRY_KEY);
       return null;
     }
 
@@ -82,8 +83,8 @@ export const useSpotifyAuth = () => {
   };
 
   const logout = () => {
-    localStorage.removeItem(OAUTH_STORAGE_KEY);
-    localStorage.removeItem(TOKEN_EXPIRY_KEY);
+    tokenStorage.removeItem(OAUTH_STORAGE_KEY);
+    tokenStorage.removeItem(TOKEN_EXPIRY_KEY);
     navigate("/");
   };
 

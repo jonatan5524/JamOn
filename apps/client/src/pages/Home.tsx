@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Music, LogOut } from "lucide-react";
+import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useSpotifyAuth } from "@/hooks/use-spotify-auth";
 import ParticleBackground from "@/components/ParticleBackground";
@@ -10,9 +11,7 @@ const Home = () => {
   const token = getAccessToken();
 
   if (!token) {
-    // If no token, redirect to login
-    window.location.href = "/login";
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   const handleLogout = () => {

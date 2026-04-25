@@ -94,3 +94,34 @@ python main.py
 5. **Indexing**: Stores the embeddings and metadata in a local ChromaDB instance.
 6. **Retrieval**: Queries the database with a mock event description ("A chill late night coding session...") to find the most semantically relevant songs.
 7. **Playlist Generation**: Sends the retrieved context songs and the event description to `gemini-1.5-flash` to generate a curated playlist, potentially adding new suggestions.
+
+## Resilience & Stability
+
+To handle AI model limits and potential outages gracefully, this service implements a **Multi-Layer Resilience Strategy**.
+
+### 1. Smart Retries (Tenacity)
+All LLM calls in `llm_service.py` are wrapped with `tenacity` retry decorators.
+- **Exponential Backoff:** If a request fails due to a rate limit (429) or server error (5xx), the system waits (2s, 4s, 8s...) before retrying.
+- **Jitter:** Randomness is added to the wait time to prevent "thundering herd" issues where many clients retry at the exact same moment.
+
+### 2. Circuit Breaker Pattern
+The `CircuitBreaker` class in `llm_service.py` acts as a safety switch for the Gemini API. It is implemented as a thread-safe singleton.
+
+#### **How it works:**
+- **CLOSED (Normal):** Requests pass through to the Gemini API. Successes reset the failure counter.
+- **OPEN (Tripped):** If **3 consecutive failures** occur (after retries), the circuit "trips". For the next **60 seconds**, all calls to the AI fail **immediately** with an `AIServiceUnavailableError`. This prevents wasting resources and protects the API from further overload.
+- **HALF-OPEN (Recovery):** After the 60-second timeout, the circuit allows **one trial request**.
+    - If it **succeeds**, the circuit resets to **CLOSED**.
+    - If it **fails**, the circuit returns to **OPEN** and the timer resets.
+
+#### **Why we use it:**
+1. **Resource Protection:** Prevents our server from hanging on long timeouts when we know the API is down.
+2. **User Experience:** Provides an instant "Service Busy" response instead of making the user wait 30+ seconds for a series of failures.
+3. **API Etiquette:** Respects the upstream provider (Google) by stopping requests when we are being rate-limited.
+
+### 3. Error Mapping
+Technical errors are mapped to standard HTTP status codes in `server.py`:
+- **429:** Rate Limit Exceeded (Google API limit).
+- **503:** Service Unavailable (Circuit is OPEN or Gemini Server Error).
+
+The NestJS orchestrator catches these and displays a friendly message to the user.

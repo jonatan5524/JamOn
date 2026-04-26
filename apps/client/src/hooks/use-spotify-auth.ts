@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 interface TokenData {
@@ -10,87 +10,85 @@ const OAUTH_STORAGE_KEY = "jamon_spotify_token";
 const TOKEN_EXPIRY_KEY = "jamon_token_expiry";
 const tokenStorage = sessionStorage;
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const BYPASS_AUTH = import.meta.env.VITE_BYPASS_AUTH === "true";
+
+const readToken = (): string | null => {
+  if (BYPASS_AUTH) return "bypass-token";
+  const tokenJson = tokenStorage.getItem(OAUTH_STORAGE_KEY);
+  const expiryTime = tokenStorage.getItem(TOKEN_EXPIRY_KEY);
+  if (!tokenJson || !expiryTime) return null;
+  if (Date.now() > parseInt(expiryTime, 10)) return null;
+  try {
+    const parsed = JSON.parse(tokenJson) as TokenData;
+    return parsed.accessToken;
+  } catch {
+    return null;
+  }
+};
+
+const clearToken = () => {
+  tokenStorage.removeItem(OAUTH_STORAGE_KEY);
+  tokenStorage.removeItem(TOKEN_EXPIRY_KEY);
+};
+
 export const useSpotifyAuth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-
-  // Check for callback from Spotify OAuth
+  // Capture #access_token=... from Spotify implicit-grant callback.
   useEffect(() => {
-    const handleCallback = () => {
-      // Check if we have a token in the URL hash
-      const hash = window.location.hash.substring(1);
-      const params = new URLSearchParams(hash);
-      const accessToken = params.get("access_token");
-      const expiresIn = params.get("expires_in");
+    const hash = window.location.hash.substring(1);
+    if (!hash) return;
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get("access_token");
+    const expiresIn = params.get("expires_in");
+    if (!accessToken) return;
 
-      if (accessToken) {
-        // Store token
-        const tokenData: TokenData = {
-          accessToken,
-          expiresIn: expiresIn ? parseInt(expiresIn, 10) : 3600,
-        };
-        tokenStorage.setItem(OAUTH_STORAGE_KEY, JSON.stringify(tokenData));
-        tokenStorage.setItem(
-          TOKEN_EXPIRY_KEY,
-          (Date.now() + parseInt(expiresIn || "3600", 10) * 1000).toString(),
-        );
-
-        // Clear hash and redirect
-        window.location.hash = "";
-        navigate("/");
-      }
+    const tokenData: TokenData = {
+      accessToken,
+      expiresIn: expiresIn ? parseInt(expiresIn, 10) : 3600,
     };
-
-    handleCallback();
+    tokenStorage.setItem(OAUTH_STORAGE_KEY, JSON.stringify(tokenData));
+    tokenStorage.setItem(
+      TOKEN_EXPIRY_KEY,
+      (Date.now() + tokenData.expiresIn * 1000).toString(),
+    );
+    window.location.hash = "";
+    navigate("/");
   }, [navigate]);
 
-  const startSpotifyLogin = () => {
+  // Drop expired token from storage on mount.
+  useEffect(() => {
+    const expiry = tokenStorage.getItem(TOKEN_EXPIRY_KEY);
+    if (expiry && Date.now() > parseInt(expiry, 10)) {
+      clearToken();
+    }
+  }, []);
+
+  const startSpotifyLogin = useCallback(() => {
     try {
       setIsLoading(true);
       setError(null);
-
-      // Redirect directly to the backend authorization endpoint
-      // The backend will redirect to Spotify
       window.location.href = `${API_URL}/auth/spotify/authorize`;
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "An error occurred during login";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Login failed");
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const getAccessToken = (): string | null => {
-    const tokenJson = tokenStorage.getItem(OAUTH_STORAGE_KEY);
-    const expiryTime = tokenStorage.getItem(TOKEN_EXPIRY_KEY);
+  const getAccessToken = useCallback((): string | null => readToken(), []);
 
-    if (!tokenJson || !expiryTime) {
-      return null;
-    }
+  const isAuthenticated = useCallback(
+    (): boolean => readToken() !== null,
+    [],
+  );
 
-    // Check if token has expired
-    if (Date.now() > parseInt(expiryTime, 10)) {
-      tokenStorage.removeItem(OAUTH_STORAGE_KEY);
-      tokenStorage.removeItem(TOKEN_EXPIRY_KEY);
-      return null;
-    }
-
-    const tokenData: TokenData = JSON.parse(tokenJson);
-    return tokenData.accessToken;
-  };
-
-  const logout = () => {
-    tokenStorage.removeItem(OAUTH_STORAGE_KEY);
-    tokenStorage.removeItem(TOKEN_EXPIRY_KEY);
-    navigate("/");
-  };
-
-  const isAuthenticated = (): boolean => {
-    return getAccessToken() !== null;
-  };
+  const logout = useCallback(() => {
+    clearToken();
+    navigate("/login");
+  }, [navigate]);
 
   return {
     startSpotifyLogin,

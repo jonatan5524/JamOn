@@ -9,7 +9,7 @@ sys.path.append(BASE_DIR)
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
 
 import llm_service
@@ -18,7 +18,19 @@ from google.genai import errors
 from lyrics_service import fetch_lyrics_map
 from rag_engine import RagEngine
 
-app = FastAPI(title="JamOn Data Engine")
+app = FastAPI(
+    title="JamOn - Data Processing Service",
+    description="""
+    This service handles all AI and vector-based computations for the JamOn project:
+    * **Vibe Analysis**: Analyzing natural language event descriptions.
+    * **RAG Engine**: Indexing and querying musical context from lyrics and audio features.
+    * **Playlist Generation**: Generating ranked recommendations using LLMs.
+    """,
+    version="1.0.0",
+    openapi_url="/api/v1/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
 @app.exception_handler(AIServiceUnavailableError)
 async def ai_service_unavailable_handler(request, exc):
@@ -48,19 +60,17 @@ async def server_error_handler(request, exc):
 
 
 class Song(BaseModel):
-    title: str
-    artist: str
-
+    title: str = Field(..., example="Levitating")
+    artist: str = Field(..., example="Dua Lipa")
 
 class RecommendRequest(BaseModel):
-    event_description: str
+    event_description: str = Field(..., example="A high-energy rooftop pool party with house music")
     songs: List[Song]
 
-
 class RecommendedSong(BaseModel):
-    title: str
-    artist: str
-    is_new: bool
+    title: str = Field(..., example="One Kiss")
+    artist: str = Field(..., example="Calvin Harris")
+    is_new: bool = Field(..., description="Indicates if the song was suggested by AI or existed in context")
 
 
 @app.on_event("startup")
@@ -71,8 +81,21 @@ async def startup():
     print("Data engine ready.")
 
 
-@app.post("/recommend", response_model=List[RecommendedSong])
+@app.post(
+    "/recommend", 
+    response_model=List[RecommendedSong],
+    tags=["Playlist Generation"],
+    summary="Generate a curated playlist based on event and user taste",
+    response_description="A list of recommended songs with metadata"
+)
 async def recommend(request: RecommendRequest):
+    """
+    This endpoint performs the following steps:
+    1. **Audio Feature Generation**: Analyzes input songs for musical characteristics.
+    2. **Lyrics Retrieval**: Fetches lyrics for deeper context.
+    3. **RAG Indexing**: Stores songs in a temporary vector database.
+    4. **AI Generation**: Uses Gemini to produce a final, vibe-aligned playlist.
+    """
     if not request.songs:
         raise HTTPException(status_code=400, detail="No songs provided for context")
 

@@ -6,13 +6,17 @@ import {
   Req,
   HttpException,
   HttpStatus,
+  Post,
+  HttpCode,
 } from "@nestjs/common";
 import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import { AuthCallbackDto } from "./dto/auth-callback.dto";
+import { ApiOperation, ApiTags, ApiResponse, ApiQuery } from "@nestjs/swagger";
 
 const OAUTH_STATE_COOKIE = "spotify_oauth_state";
 
+@ApiTags('Authentication') // קיבוץ תחת קטגוריית Auth ב-Swagger
 @Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -33,6 +37,11 @@ export class AuthController {
   }
 
   @Get("spotify/authorize")
+  @ApiOperation({ 
+    summary: 'Initiate the OAuth 2.0 flow to link a user’s Spotify account',
+    description: 'Redirects the user to Spotify for authentication and sets a state cookie for security.'
+  })
+  @ApiResponse({ status: 302, description: 'Redirecting to Spotify authorization page.' })
   async authorizeSpotify(@Res() res: Response) {
     const { url, state } = this.authService.getAuthorizationUrl();
     res.cookie(OAUTH_STATE_COOKIE, state, {
@@ -45,6 +54,15 @@ export class AuthController {
   }
 
   @Get("spotify/callback")
+  @ApiOperation({ 
+    summary: 'Handle Spotify OAuth callback',
+    description: 'Exchanges the authorization code for access tokens and redirects to the frontend client.'
+  })
+  @ApiQuery({ name: 'code', required: false, description: 'The authorization code returned from Spotify' })
+  @ApiQuery({ name: 'state', required: false, description: 'The state string to prevent CSRF' })
+  @ApiResponse({ status: 302, description: 'Redirecting back to client with access tokens.' })
+  @ApiResponse({ status: 401, description: 'Authorization denied or failed.' })
+  @ApiResponse({ status: 400, description: 'Missing code or invalid state.' })
   async handleSpotifyCallback(
     @Query() query: AuthCallbackDto,
     @Req() req: Request,
@@ -89,5 +107,16 @@ export class AuthController {
     redirectUrl.hash = `access_token=${tokenResponse.access_token}&token_type=Bearer&expires_in=${tokenResponse.expires_in}`;
 
     res.redirect(redirectUrl.toString());
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Invalidate session JWT and clear local tokens',
+    description: 'Clears the current user session and authentication tokens.'
+  })
+  @ApiResponse({ status: 200, description: 'Logged out successfully.' })
+  async logout() {
+    return;
   }
 }

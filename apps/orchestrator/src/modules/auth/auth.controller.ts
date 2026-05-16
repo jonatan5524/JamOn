@@ -15,14 +15,14 @@ import {
 import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import { AuthCallbackDto } from "./dto/auth-callback.dto";
-import { ApiOperation, ApiTags, ApiResponse, ApiQuery } from "@nestjs/swagger";
+import { ApiOperation, ApiTags, ApiResponse, ApiQuery, ApiBearerAuth, ApiBody } from "@nestjs/swagger";
 import { ConfigService } from "@nestjs/config";
 import { AuthGuard } from "@nestjs/passport";
 
 const OAUTH_STATE_COOKIE = "spotify_oauth_state";
 
 @ApiTags('Authentication')
-@Controller("auth")
+@Controller("api/auth")
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -123,32 +123,34 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Invalidate session JWT and clear local tokens',
     description: 'Clears the current user session and authentication tokens.'
   })
   @ApiResponse({ status: 200, description: 'Logged out successfully.' })
   async logout(@Req() req: any) {
-    console.log('Received logout request');
-    console.log('Authorization Header:', req.headers.authorization);
     const userId = req.user.userId;
-    console.log(`Logging out user ${userId}`);
     await this.authService.handleLogout(userId);
+
     return { message: 'Logged out successfully' };
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Refresh access token using a valid refresh token',
     description: 'Exchanges a valid refresh token for a new access token.'
   })
+  @ApiBody({ schema: { type: 'object', properties: { refreshToken: { type: 'string' } }, required: ['refreshToken'] } })
   @ApiResponse({ status: 200, description: 'Tokens refreshed successfully.' })
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token.' })
   async refresh(@Body('refreshToken') refreshToken: string) {
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token is required');
     }
+
     return this.authService.refreshTokens(refreshToken);
   }
 }

@@ -8,6 +8,7 @@ import { UserModule } from "./modules/user/user.module";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { User } from "./modules/user/user.entity";
 import { DataSource } from "typeorm";
+import { Event } from "./modules/event/event.entity";
 
 @Module({
   imports: [
@@ -25,8 +26,9 @@ import { DataSource } from "typeorm";
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
-        entities: [User],
+        entities: [User, Event],
         synchronize: true,
+        autoLoadEntities: true
       }),
     }),
     SpotifyModule,

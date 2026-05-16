@@ -1,4 +1,4 @@
-import api from "@/lib/api";
+import api from "../lib/api/api";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 

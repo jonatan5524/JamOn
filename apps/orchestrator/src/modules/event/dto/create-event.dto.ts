@@ -1,8 +1,15 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { IsNotEmpty, IsString } from "class-validator";
 
 export class CreateEventDto {
+
   @ApiProperty({ example: 'My Birthday Party' })
-  name!: string;
+  @IsString()       
+  @IsNotEmpty()
+  title!: string;
+  
   @ApiProperty({ example: 'High energy pop and dance music' })
-  description!: string;
+  @IsString()
+  @IsNotEmpty()
+  context!: string;
 }

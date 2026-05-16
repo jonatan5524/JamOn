@@ -57,7 +57,7 @@ const CreateEventForm = ({ onClose }: { onClose: () => void }) => {
   const handleCreate = () => {
     if (!canCreate) return;
     createMutation.mutate(
-      { name: trimmedName, description: trimmedDesc },
+      { title: trimmedName, context: trimmedDesc },
       {
         onSuccess: (event) => {
           onClose();

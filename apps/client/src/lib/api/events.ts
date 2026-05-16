@@ -7,7 +7,7 @@
  * to either `apiFetch` or its mock counterpart.
  */
 import { apiFetch } from "./client";
-import { delay } from "@/lib/mockApi/_mock";
+import { delay } from "@/lib/api/_mock";
 import {
   MOCK_EVENT_DETAIL,
   MOCK_EVENT_DETAILS,
@@ -19,6 +19,7 @@ import type {
   PlaylistResponse,
 } from "@/types/api";
 import type { EventDetail, EventSummary } from "@/types/event";
+import api from "./api";
 
 const USE_MOCKS = import.meta.env.VITE_USE_MOCKS !== "false";
 
@@ -54,21 +55,18 @@ export const findEventByCode = async (code: string): Promise<EventSummary> => {
 };
 
 // POST /api/events
-export const createEvent = (
+export const createEvent = async (
   payload: CreateEventRequest,
-): Promise<EventSummary> =>
-  USE_MOCKS
-    ? delay({
-        id: crypto.randomUUID(),
-        code: Math.random().toString(36).slice(2, 8).toUpperCase(),
-        name: payload.name,
-        description: payload.description,
-        participantCount: 1,
-      })
-    : apiFetch<EventSummary>("/api/events", {
-        method: "POST",
-        body: payload,
-      });
+): Promise<EventSummary> => {
+
+  console.log("Creating event with payload:", payload);
+  const response = await api.post<EventSummary>("/events", {
+    title: payload.title,
+    context: payload.context,
+  });
+
+  return response.data;
+};
 
 // POST /api/events/:id/join
 export const joinEvent = (

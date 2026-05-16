@@ -1,8 +1,8 @@
 /**
  * User API. Backend: GET /api/users/me (currently a stub).
  */
-import { apiFetch } from "@/lib/api/client";
-import { delay } from "@/lib/api/_mock";
+import { apiFetch } from "@/lib/mockApi/client";
+import { delay } from "@/lib/mockApi/_mock";
 
 const USE_MOCKS = import.meta.env.VITE_USE_MOCKS !== "false";
 

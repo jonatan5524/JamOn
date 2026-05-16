@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 
 @ApiTags('Users')
 @Controller('api/users')
-export class UsersController {
+export class UserController {
 
   @Get('me')
   @ApiOperation({ summary: 'Retrieve current user profile and event history' })

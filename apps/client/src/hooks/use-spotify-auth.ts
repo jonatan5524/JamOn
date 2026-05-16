@@ -1,35 +1,15 @@
+import api from "@/lib/api";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-interface TokenData {
-  accessToken: string;
-  expiresIn: number;
-}
-
-const OAUTH_STORAGE_KEY = "jamon_spotify_token";
-const TOKEN_EXPIRY_KEY = "jamon_token_expiry";
-const tokenStorage = sessionStorage;
-
+const ACCESS_TOKEN_KEY = "jamon_access_token";
+const REFRESH_TOKEN_KEY = "jamon_refresh_token";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const BYPASS_AUTH = import.meta.env.VITE_BYPASS_AUTH === "true";
 
-const readToken = (): string | null => {
-  if (BYPASS_AUTH) return "bypass-token";
-  const tokenJson = tokenStorage.getItem(OAUTH_STORAGE_KEY);
-  const expiryTime = tokenStorage.getItem(TOKEN_EXPIRY_KEY);
-  if (!tokenJson || !expiryTime) return null;
-  if (Date.now() > parseInt(expiryTime, 10)) return null;
-  try {
-    const parsed = JSON.parse(tokenJson) as TokenData;
-    return parsed.accessToken;
-  } catch {
-    return null;
-  }
-};
-
 const clearToken = () => {
-  tokenStorage.removeItem(OAUTH_STORAGE_KEY);
-  tokenStorage.removeItem(TOKEN_EXPIRY_KEY);
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
 };
 
 export const useSpotifyAuth = () => {
@@ -37,35 +17,29 @@ export const useSpotifyAuth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Capture #access_token=... from Spotify implicit-grant callback.
-  useEffect(() => {
-    const hash = window.location.hash.substring(1);
-    if (!hash) return;
-    const params = new URLSearchParams(hash);
-    const accessToken = params.get("access_token");
-    const expiresIn = params.get("expires_in");
-    if (!accessToken) return;
-
-    const tokenData: TokenData = {
-      accessToken,
-      expiresIn: expiresIn ? parseInt(expiresIn, 10) : 3600,
-    };
-    tokenStorage.setItem(OAUTH_STORAGE_KEY, JSON.stringify(tokenData));
-    tokenStorage.setItem(
-      TOKEN_EXPIRY_KEY,
-      (Date.now() + tokenData.expiresIn * 1000).toString(),
-    );
-    window.location.hash = "";
-    navigate("/");
-  }, [navigate]);
-
-  // Drop expired token from storage on mount.
-  useEffect(() => {
-    const expiry = tokenStorage.getItem(TOKEN_EXPIRY_KEY);
-    if (expiry && Date.now() > parseInt(expiry, 10)) {
-      clearToken();
-    }
+  const isAuthenticated = useCallback((): boolean => {
+    if (BYPASS_AUTH) return true;
+    return !!localStorage.getItem(ACCESS_TOKEN_KEY);
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const appAccessToken = params.get("appAccessToken");
+    const appRefreshToken = params.get("appRefreshToken");
+    const spotifyError = params.get("error");
+
+    if (spotifyError) {
+      setError(spotifyError);
+      return;
+    }
+
+    if (appAccessToken && appRefreshToken) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, appAccessToken);
+      localStorage.setItem(REFRESH_TOKEN_KEY, appRefreshToken);
+
+      navigate("/", { replace: true });
+    }
+  }, [navigate]);
 
   const startSpotifyLogin = useCallback(() => {
     try {
@@ -78,16 +52,24 @@ export const useSpotifyAuth = () => {
     }
   }, []);
 
-  const getAccessToken = useCallback((): string | null => readToken(), []);
+  const getAccessToken = useCallback((): string | null => {
+    if (BYPASS_AUTH) return "bypass-token";
+    return localStorage.getItem(ACCESS_TOKEN_KEY);
+  }, []);
 
-  const isAuthenticated = useCallback(
-    (): boolean => readToken() !== null,
-    [],
-  );
+  const logout = useCallback(async () => {
+    try {
+      const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
 
-  const logout = useCallback(() => {
-    clearToken();
-    navigate("/login");
+      if (accessToken) {
+        await api.post("/auth/logout");
+      }
+    } catch (err) {
+      console.error("Failed to invalidate token on backend during logout", err);
+    } finally {
+      clearToken();
+      navigate("/login", { replace: true });
+    }
   }, [navigate]);
 
   return {

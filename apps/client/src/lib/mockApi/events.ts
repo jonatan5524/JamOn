@@ -6,8 +6,8 @@
  * `VITE_USE_MOCKS=false` once endpoints land — each function dispatches
  * to either `apiFetch` or its mock counterpart.
  */
-import { apiFetch } from "@/lib/api/client";
-import { delay } from "@/lib/api/_mock";
+import { apiFetch } from "./client";
+import { delay } from "@/lib/mockApi/_mock";
 import {
   MOCK_EVENT_DETAIL,
   MOCK_EVENT_DETAILS,

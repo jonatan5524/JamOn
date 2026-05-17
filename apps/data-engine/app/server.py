@@ -15,7 +15,7 @@ from typing import List
 import llm_service
 from llm_service import AIServiceUnavailableError
 from google.genai import errors
-from lyrics_service import fetch_lyrics_map
+from lyrics_service import fetch_lyrics_batch, fetch_lyrics_map
 from rag_engine import RagEngine
 
 app = FastAPI(
@@ -72,12 +72,27 @@ class RecommendedSong(BaseModel):
     artist: str = Field(..., example="Calvin Harris")
     is_new: bool = Field(..., description="Indicates if the song was suggested by AI or existed in context")
 
+class LyricsBatchRequest(BaseModel):
+    songs: List[Song]
+
+class LyricsResult(BaseModel):
+    title: str
+    artist: str
+    found: bool
+    lyrics: str
+    genius_url: str | None = None
+    error: str | None = None
+
+class LyricsBatchResponse(BaseModel):
+    songs: List[LyricsResult]
+
 
 @app.on_event("startup")
 async def startup():
     if not os.environ.get("GEMINI_API_KEY"):
         print("Warning: GEMINI_API_KEY not set. LLM calls will fail.")
-        return
+    if not os.environ.get("GENIUS_ACCESS_TOKEN"):
+        print("Warning: GENIUS_ACCESS_TOKEN not set. Lyrics lookup will be skipped.")
     print("Data engine ready.")
 
 
@@ -139,3 +154,21 @@ async def recommend(request: RecommendRequest):
         )
         for song in playlist
     ]
+
+
+@app.post(
+    "/lyrics/batch",
+    response_model=LyricsBatchResponse,
+    tags=["Lyrics"],
+    summary="Fetch Genius lyrics for a batch of songs",
+)
+async def lyrics_batch(request: LyricsBatchRequest):
+    """
+    Fetch lyrics directly from Genius inside the Python data-engine service.
+    This replaces the old separate Node lyrics server.
+    """
+    if not request.songs:
+        raise HTTPException(status_code=400, detail="Request body must include a non-empty 'songs' array.")
+
+    input_songs = [{"title": s.title, "artist": s.artist} for s in request.songs]
+    return {"songs": fetch_lyrics_batch(input_songs)}

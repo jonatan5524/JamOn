@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Camera, Keyboard, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { findEventByCode } from "@/lib/api";
+import { findEventByCode } from "@/lib/api/index";
 import { Button } from "@/components/ui/button";
 import CodeInput from "@/components/ui/code-input";
 import Modal from "@/components/ui/modal";

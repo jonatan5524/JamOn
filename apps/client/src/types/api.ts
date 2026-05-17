@@ -16,8 +16,8 @@
 // --- Events (backend) -------------------------------------------------------
 
 export interface CreateEventRequest {
-  name: string;
-  description: string;
+  title: string;
+  context: string;
 }
 
 export interface JoinEventRequest {

@@ -5,7 +5,7 @@ import {
   getEvent,
   joinEvent,
   listEvents,
-} from "@/lib/api";
+} from "@/lib/api/index";
 import type {
   CreateEventRequest,
   JoinEventRequest,

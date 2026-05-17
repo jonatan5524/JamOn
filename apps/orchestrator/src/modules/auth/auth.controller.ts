@@ -8,18 +8,26 @@ import {
   HttpStatus,
   Post,
   HttpCode,
+  UseGuards,
+  Body,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import { AuthCallbackDto } from "./dto/auth-callback.dto";
-import { ApiOperation, ApiTags, ApiResponse, ApiQuery } from "@nestjs/swagger";
+import { ApiOperation, ApiTags, ApiResponse, ApiQuery, ApiBearerAuth, ApiBody } from "@nestjs/swagger";
+import { ConfigService } from "@nestjs/config";
+import { AuthGuard } from "@nestjs/passport";
 
 const OAUTH_STATE_COOKIE = "spotify_oauth_state";
 
-@ApiTags('Authentication') // קיבוץ תחת קטגוריית Auth ב-Swagger
-@Controller("auth")
+@ApiTags('Authentication')
+@Controller("api/auth")
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) { }
 
   private getCookie(req: Request, name: string): string | null {
     const cookieHeader = req.headers.cookie;
@@ -37,24 +45,26 @@ export class AuthController {
   }
 
   @Get("spotify/authorize")
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Initiate the OAuth 2.0 flow to link a user’s Spotify account',
     description: 'Redirects the user to Spotify for authentication and sets a state cookie for security.'
   })
   @ApiResponse({ status: 302, description: 'Redirecting to Spotify authorization page.' })
   async authorizeSpotify(@Res() res: Response) {
     const { url, state } = this.authService.getAuthorizationUrl();
+
     res.cookie(OAUTH_STATE_COOKIE, state, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       maxAge: 10 * 60 * 1000,
     });
+
     res.redirect(url);
   }
 
   @Get("spotify/callback")
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Handle Spotify OAuth callback',
     description: 'Exchanges the authorization code for access tokens and redirects to the frontend client.'
   })
@@ -85,6 +95,7 @@ export class AuthController {
     }
 
     const expectedState = this.getCookie(req, OAUTH_STATE_COOKIE);
+
     if (!state || !expectedState || state !== expectedState) {
       throw new HttpException(
         { error: "Invalid OAuth state" },
@@ -98,25 +109,48 @@ export class AuthController {
       secure: process.env.NODE_ENV === "production",
     });
 
-    const tokenResponse = await this.authService.exchangeCodeForToken(code);
+    const tokens = await this.authService.handleLogin(code);
 
-    // Redirect to client with token in hash
-    const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+    const clientUrl = this.configService.get('CLIENT_URL') || "http://localhost:5173";
     const redirectUrl = new URL(clientUrl);
     redirectUrl.pathname = "/login";
-    redirectUrl.hash = `access_token=${tokenResponse.access_token}&token_type=Bearer&expires_in=${tokenResponse.expires_in}`;
+    redirectUrl.searchParams.append("appAccessToken", tokens.appAccessToken);
+    redirectUrl.searchParams.append("appRefreshToken", tokens.appRefreshToken);
 
     res.redirect(redirectUrl.toString());
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
     summary: 'Invalidate session JWT and clear local tokens',
     description: 'Clears the current user session and authentication tokens.'
   })
   @ApiResponse({ status: 200, description: 'Logged out successfully.' })
-  async logout() {
-    return;
+  async logout(@Req() req: any) {
+    const userId = req.user.userId;
+    await this.authService.handleLogout(userId);
+
+    return { message: 'Logged out successfully' };
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Refresh access token using a valid refresh token',
+    description: 'Exchanges a valid refresh token for a new access token.'
+  })
+  @ApiBody({ schema: { type: 'object', properties: { refreshToken: { type: 'string' } }, required: ['refreshToken'] } })
+  @ApiResponse({ status: 200, description: 'Tokens refreshed successfully.' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token.' })
+  async refresh(@Body('refreshToken') refreshToken: string) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
+
+    return this.authService.refreshTokens(refreshToken);
   }
 }

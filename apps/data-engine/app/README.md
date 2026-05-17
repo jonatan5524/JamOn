@@ -7,12 +7,13 @@ It demonstrates the "Text-ification" RAG approach using Gemini 1.5 Flash and Chr
 
 - Python 3.10+
 - A Google Gemini API Key
+- Optional: a Genius API access token for lyrics lookup
 
 ## Setup
 
 1. Navigate to the POC directory:
    ```bash
-   cd apps/data-engine/poc
+   cd apps/data-engine/app
    ```
 
 2. Create a virtual environment:
@@ -27,25 +28,13 @@ It demonstrates the "Text-ification" RAG approach using Gemini 1.5 Flash and Chr
    ```
 
 4. Set up your API Key:
-   Create a `.env` file in this directory (`apps/data-engine/app/.env`) and add your key:
+   Create a `.env` file in this directory (`apps/data-engine/app/.env`) and add your keys:
    ```
    GEMINI_API_KEY=your_actual_api_key_here
+   GENIUS_ACCESS_TOKEN=your_actual_genius_token_here
    ```
 
 ## Running the POC
-
-Optional: start the Node lyrics server first if you want real lyrics from Genius.
-
-```bash
-cd apps/lyrics-server
-npm start
-```
-
-Then set the Python app to use it:
-
-```bash
-export LYRICS_SERVICE_URL=http://localhost:3001
-```
 
 Run the main script:
 ```bash
@@ -58,7 +47,7 @@ python main.py
 
 1. Make sure your `.env` file is in place with `GEMINI_API_KEY` set (see Setup above).
 
-2. Optionally, start the lyrics server first and set its URL (see above).
+2. Optional: set `GENIUS_ACCESS_TOKEN` if you want lyrics from Genius.
 
 3. Start the server with Uvicorn:
    ```bash
@@ -73,6 +62,7 @@ python main.py
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/recommend` | Generate a playlist recommendation for an event description |
+| `POST` | `/lyrics/batch` | Fetch Genius lyrics for a batch of songs |
 
 **Example `/recommend` request:**
 ```json
@@ -88,7 +78,7 @@ python main.py
 ## How it Works
 
 1. **Mock Data**: Loads 20 sample songs.
-2. **Lyrics Fetching**: Tries to fetch lyrics from the local Node Genius server. If the service is unavailable or a song has no lyrics result, the POC continues with an empty lyrics string for that track.
+2. **Lyrics Fetching**: Tries to fetch lyrics directly from Genius in the Python data-engine. If Genius is unavailable, not configured, or a song has no lyrics result, the POC continues with an empty lyrics string for that track.
 3. **Audio Feature Extraction**: Sends the songs to `gemini-1.5-flash` to generate descriptive tags (Energy, Mood, Vibe) instead of raw numbers.
 4. **Vectorization**: Combines the generated tags and lyrics snippets into a single text block and embeds it using `gemini-embedding-2-preview`.
 5. **Indexing**: Stores the embeddings and metadata in a local ChromaDB instance.

@@ -39,9 +39,9 @@ def main():
     lyrics_map = fetch_lyrics_map(MOCK_SONGS)
     lyrics_found = sum(1 for lyrics in lyrics_map.values() if lyrics)
     if lyrics_found:
-        print(f"Fetched lyrics for {lyrics_found} songs from lyrics service.")
+        print(f"Fetched lyrics for {lyrics_found} songs from Genius.")
     else:
-        print("No lyrics were fetched from the lyrics service. Continuing without lyrics.")
+        print("No lyrics were fetched from Genius. Continuing without lyrics.")
 
     # 2. Index Songs in Vector DB
     print("\n2. Indexing Songs into Vector DB...")

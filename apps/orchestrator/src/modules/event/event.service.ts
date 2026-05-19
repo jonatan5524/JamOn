@@ -39,6 +39,17 @@ export class EventsService {
         throw new InternalServerErrorException('Failed to generate unique event code');
     }
 
+    async findById(id: string): Promise<Event> {
+        const event = await this.eventRepository.findOne({
+            where: { id },
+            relations: ['participants', 'participants.user', 'creator'],
+        });
+        if (!event) {
+            throw new NotFoundException(`Event ${id} not found`);
+        }
+        return event;
+    }
+
     async findByCode(code: string): Promise<Event> {
         const event = await this.eventRepository.findOne({
             where: { code: code.toUpperCase() },

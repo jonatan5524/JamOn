@@ -6,11 +6,7 @@ import {
   joinEvent,
   listEvents,
 } from "@/lib/api/index";
-import type {
-  CreateEventRequest,
-  JoinEventRequest,
-  PlaylistResponse,
-} from "@/types/api";
+import type { CreateEventRequest, PlaylistResponse } from "@/types/api";
 import type {
   EventDetail,
   EventSummary,
@@ -79,10 +75,10 @@ export const useCreateEvent = () => {
 
 export const useJoinEvent = (eventId: string | undefined) => {
   const qc = useQueryClient();
-  return useMutation<EventDetail, Error, JoinEventRequest>({
-    mutationFn: (payload) => joinEvent(eventId as string, payload),
-    onSuccess: (data) => {
-      qc.setQueryData(eventKeys.detail(data.id), data);
+  return useMutation<void, Error, void>({
+    mutationFn: () => joinEvent(eventId as string),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
       qc.invalidateQueries({ queryKey: eventKeys.list() });
     },
   });

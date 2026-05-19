@@ -57,9 +57,12 @@ export class EventsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'List of active participants and current Event Vector summary' })
+  @ApiOperation({ summary: 'Event detail with participants' })
+  @ApiParam({ name: 'id', description: 'Event ID' })
+  @ApiResponse({ status: 200, description: 'Event detail.' })
+  @ApiResponse({ status: 404, description: 'Event not found.' })
   async getEventDetails(@Param('id') id: string) {
-    return;
+    return this.eventsService.findById(id);
   }
 
   @Post(':id/generate-playlist')

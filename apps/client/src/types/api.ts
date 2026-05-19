@@ -20,10 +20,6 @@ export interface CreateEventRequest {
   context: string;
 }
 
-export interface JoinEventRequest {
-  userId: string;
-}
-
 // --- Playlist (backend) -----------------------------------------------------
 
 export interface CreatePlaylistRequest {

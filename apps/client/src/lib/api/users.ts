@@ -18,4 +18,4 @@ export const getCurrentUser = (): Promise<CurrentUser> =>
         id: "user_mock",
         displayName: "Demo User",
       })
-    : apiFetch<CurrentUser>("/api/users/me");
+    : apiFetch<CurrentUser>("/users/me");

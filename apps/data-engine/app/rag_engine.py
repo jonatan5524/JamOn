@@ -1,5 +1,7 @@
 import chromadb
-from typing import List, Dict, Any
+import asyncio
+import random
+from typing import List, Dict, Any, TypedDict
 import llm_service
 
 class RagEngine:
@@ -92,3 +94,114 @@ class RagEngine:
                 retrieved_songs.append(meta)
                 
         return retrieved_songs
+
+
+class PlaylistState(TypedDict):
+    event_description: str
+    db_songs: List[Dict[str, Any]]
+    candidate_wildcards: List[Dict[str, Any]]
+    validated_wildcards: List[Dict[str, Any]]
+    rejected_wildcards: List[str]
+    attempts: int
+    final_playlist: List[Dict[str, Any]]
+
+class PlaylistGraphBuilder:
+    def __init__(self, llm_generator, db_fetcher, uri_validator, target_wildcards=5, max_attempts=3):
+        self.llm_generator = llm_generator
+        self.db_fetcher = db_fetcher
+        self.uri_validator = uri_validator
+        self.target_wildcards = target_wildcards
+        self.max_attempts = max_attempts
+
+    async def initial_fetch(self, state: PlaylistState) -> PlaylistState:
+        # Run DB fetch and LLM wildcard generation concurrently
+        db_task = self.db_fetcher(state.get("event_description", ""))
+        llm_task = self.llm_generator(state.get("event_description", ""), self.target_wildcards, [])
+        
+        db_songs, candidate_wildcards = await asyncio.gather(db_task, llm_task)
+        
+        return {
+            "db_songs": db_songs,
+            "candidate_wildcards": candidate_wildcards,
+            "validated_wildcards": [],
+            "rejected_wildcards": [],
+            "attempts": 1
+        }
+
+    async def validate(self, state: PlaylistState) -> PlaylistState:
+        validated = list(state.get("validated_wildcards", []))
+        rejected = list(state.get("rejected_wildcards", []))
+        candidates = state.get("candidate_wildcards", [])
+        
+        if candidates:
+            # Parallel async validation using the injected uri_validator
+            validation_results = await asyncio.gather(*(self.uri_validator(song) for song in candidates))
+            for song, is_valid in zip(candidates, validation_results):
+                if is_valid:
+                    validated.append(song)
+                else:
+                    rejected.append(f"{song.get('title', 'Unknown')} by {song.get('artist', 'Unknown')}")
+                    
+        return {
+            "validated_wildcards": validated,
+            "rejected_wildcards": rejected,
+            "candidate_wildcards": []
+        }
+
+    async def regenerate(self, state: PlaylistState) -> PlaylistState:
+        validated = state.get("validated_wildcards", [])
+        rejected = state.get("rejected_wildcards", [])
+        attempts = state.get("attempts", 1)
+        missing = self.target_wildcards - len(validated)
+        
+        new_candidates = await self.llm_generator(
+            state.get("event_description", ""), 
+            missing, 
+            rejected
+        )
+        
+        return {
+            "candidate_wildcards": new_candidates,
+            "attempts": attempts + 1
+        }
+
+    def should_finalize(self, state: PlaylistState) -> str:
+        if len(state.get("validated_wildcards", [])) >= self.target_wildcards or state.get("attempts", 1) >= self.max_attempts:
+            return "merge_and_shuffle"
+        return "regenerate"
+
+    async def merge_and_shuffle(self, state: PlaylistState) -> PlaylistState:
+        combined = state.get("db_songs", []) + state.get("validated_wildcards", [])
+        
+        seen = set()
+        deduped = []
+        for song in combined:
+            key = f"{song.get('title', '').lower()} - {song.get('artist', '').lower()}"
+            if key not in seen:
+                seen.add(key)
+                deduped.append(song)
+                
+        random.shuffle(deduped)
+        return {"final_playlist": deduped}
+
+    def build(self):
+        # Assumes langgraph is installed
+        try:
+            from langgraph.graph import StateGraph, START, END
+        except ImportError:
+            raise RuntimeError("langgraph is required. Run pip install langgraph")
+            
+        workflow = StateGraph(PlaylistState)
+        
+        workflow.add_node("initial_fetch", self.initial_fetch)
+        workflow.add_node("validate", self.validate)
+        workflow.add_node("regenerate", self.regenerate)
+        workflow.add_node("merge_and_shuffle", self.merge_and_shuffle)
+        
+        workflow.add_edge(START, "initial_fetch")
+        workflow.add_edge("initial_fetch", "validate")
+        workflow.add_conditional_edges("validate", self.should_finalize)
+        workflow.add_edge("regenerate", "validate")
+        workflow.add_edge("merge_and_shuffle", END)
+        
+        return workflow.compile()

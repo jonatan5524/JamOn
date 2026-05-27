@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import asyncio
 from dotenv import load_dotenv
 
 # Load environment variables before importing other local modules
@@ -13,19 +14,26 @@ sys.path.append(BASE_DIR)
 from data.mock_data import MOCK_SONGS
 import llm_service
 from lyrics_service import fetch_lyrics_map
-from rag_engine import RagEngine
+from rag_engine import RagEngine, PlaylistGraphBuilder
 
-def main():
+async def mock_uri_validator(song: dict) -> bool:
+    """
+    Mock validator for local testing without the NestJS orchestrator.
+    In this mock, we assume all songs are valid.
+    """
+    print(f"   [Mock Validator] Checking: {song.get('title')} by {song.get('artist')}... VALID")
+    return True
+
+async def main():
     if not os.environ.get("GEMINI_API_KEY"):
         print("Error: GEMINI_API_KEY not found in environment variables.")
         print("Please set it in a .env file or export it.")
         return
 
-    print("--- Starting JamOn RAG POC ---")
+    print("--- Starting JamOn Agentic RAG POC ---")
 
     # 1. Get Audio Features from LLM
     print("\n1. Generating Audio Features for Mock Songs...")
-    # For POC, we can process all 20 songs.
     songs_with_features = llm_service.generate_audio_features(MOCK_SONGS)
     
     if not songs_with_features:
@@ -33,15 +41,11 @@ def main():
         return
 
     print(f"Generated features for {len(songs_with_features)} songs.")
-    print("Sample feature:", json.dumps(songs_with_features[0], indent=2))
 
     print("\nFetching lyrics...")
     lyrics_map = fetch_lyrics_map(MOCK_SONGS)
     lyrics_found = sum(1 for lyrics in lyrics_map.values() if lyrics)
-    if lyrics_found:
-        print(f"Fetched lyrics for {lyrics_found} songs from Genius.")
-    else:
-        print("No lyrics were fetched from Genius. Continuing without lyrics.")
+    print(f"Fetched lyrics for {lyrics_found} songs.")
 
     # 2. Index Songs in Vector DB
     print("\n2. Indexing Songs into Vector DB...")
@@ -52,22 +56,45 @@ def main():
     mock_event = "A sad mood for a funeral."
     print(f"\n3. Mock Event: '{mock_event}'")
 
-    # 4. Query Vector DB
-    print("\n4. Retrieving relevant songs from library...")
-    # Retrieve top 10 context songs
-    context_songs = rag.query_songs(mock_event, n_results=10)
+    # 4. Define Graph Wrappers
+    async def db_fetch_wrapper(query: str):
+        print(f"   [Graph] Querying Vector DB for: {query}")
+        return await asyncio.to_thread(rag.query_songs, query, n_results=10)
+        
+    async def llm_gen_wrapper(prompt: str, count: int, rejected: list):
+        print(f"   [Graph] LLM Generating {count} new songs (Avoiding: {len(rejected)} rejected)")
+        # We fetch context here for the LLM prompt
+        context = await asyncio.to_thread(rag.query_songs, prompt, n_results=10)
+        return await asyncio.to_thread(llm_service.generate_playlist, prompt, context, count, rejected)
+
+    # 5. Build and Run Graph
+    print("\n5. Executing Agentic LangGraph Workflow...")
+    builder = PlaylistGraphBuilder(
+        llm_generator=llm_gen_wrapper,
+        db_fetcher=db_fetch_wrapper,
+        uri_validator=mock_uri_validator,
+        target_wildcards=5,
+        max_attempts=3
+    )
     
-    print(f"Retrieved {len(context_songs)} context songs.")
-    for song in context_songs:
-        desc = song.get('mood_desc') or song.get('embedding_text') or ""
-        print(f" - {song['title']} by {song['artist']} ({desc[:50]}...)")
-
-    # 5. Generate Playlist
-    print("\n5. Generating Final Playlist...")
-    playlist = llm_service.generate_playlist(mock_event, context_songs)
-
-    print("\n--- Final Playlist ---")
-    print(json.dumps(playlist, indent=2))
+    workflow = builder.build()
+    initial_state = {"event_description": mock_event}
+    
+    try:
+        final_state = await workflow.ainvoke(initial_state)
+        playlist = final_state.get("final_playlist", [])
+        
+        print("\n--- Final Agentic Playlist ---")
+        for i, song in enumerate(playlist):
+            source = "NEW" if song.get("source") == "new_suggestion" else "LIBRARY"
+            print(f"{i+1}. [{source}] {song['title']} - {song['artist']}")
+            
+        print(f"\nTotal Songs: {len(playlist)}")
+        print(f"Attempts taken: {final_state.get('attempts')}")
+        
+    except Exception as e:
+        print(f"\nError during graph execution: {e}")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
+

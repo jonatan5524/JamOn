@@ -87,3 +87,5 @@ The Python service (`data-engine`) is internal and exposes:
 │       └── app/services/rag_engine.py
 ├── docker-compose.yml
 └── COPILOT_INSTRUCTIONS.md
+
+**do not do any git operations on your own**

@@ -119,7 +119,10 @@ def generate_audio_features(songs: List[Dict[str, Any]]) -> List[Dict[str, Any]]
         return []
 
 @with_resilience
-def generate_playlist(event_description: str, context_songs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def generate_playlist(event_description: str, context_songs: List[Dict[str, Any]], count: int = 5, rejected: List[str] = None) -> List[Dict[str, Any]]:
+    if rejected is None:
+        rejected = []
+        
     prompt_template = load_prompt("playlist_generation_prompt.txt")
     
     # Format context songs for the prompt
@@ -129,13 +132,19 @@ def generate_playlist(event_description: str, context_songs: List[Dict[str, Any]
         for song in context_songs
     ], indent=2)
     
-    prompt = prompt_template.replace("{event_description}", event_description).replace("{context_str}", context_str)
+    rejected_str = json.dumps(rejected, indent=2) if rejected else "None"
+    
+    prompt = prompt_template.replace("{event_description}", event_description)\
+                            .replace("{context_str}", context_str)\
+                            .replace("{rejected_str}", rejected_str)\
+                            .replace("{count}", str(count))
     
     try:
         response = client.models.generate_content(
             model=PLAYLIST_GENERATION_MODEL_NAME,
             contents=prompt,
             config=types.GenerateContentConfig(
+                # Use json_object for reliability if supported, otherwise application/json is fine
                 response_mime_type="application/json"
             )
         )

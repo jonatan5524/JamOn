@@ -16,7 +16,12 @@ import llm_service
 from llm_service import AIServiceUnavailableError
 from google.genai import errors
 from lyrics_service import fetch_lyrics_batch, fetch_lyrics_map
-from rag_engine import RagEngine
+from rag_engine import RagEngine, PlaylistGraphBuilder
+from validators import validate_spotify_uri_via_nestjs
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="JamOn - Data Processing Service",
@@ -132,25 +137,46 @@ async def recommend(request: RecommendRequest):
     rag = RagEngine()
     rag.add_songs(songs_with_features, lyrics_map)
 
-    # 5. Query vector DB for matching songs
-    context_songs = rag.query_songs(request.event_description, n_results=10)
+    # 5. Define wrappers for the Graph to bridge Sync/Async
+    async def db_fetch_wrapper(query: str):
+        # Retrieve top 10 context songs (Synchronous ChromaDB query)
+        return await asyncio.to_thread(rag.query_songs, query, n_results=20)
+        
+    async def llm_gen_wrapper(prompt: str, count: int, rejected: List[str]):
+        # We need context songs for the LLM prompt
+        context = await asyncio.to_thread(rag.query_songs, prompt, n_results=10)
+        # Call the updated llm_service.generate_playlist (Synchronous Google GenAI call)
+        return await asyncio.to_thread(llm_service.generate_playlist, prompt, context, count, rejected)
 
-    if not context_songs:
-        raise HTTPException(status_code=404, detail="No matching songs found in provided context")
-
-    # 6. Generate playlist via LLM
-    print("Generating final playlist recommendation...")
-    playlist = llm_service.generate_playlist(request.event_description, context_songs)
+    # 6. Compile and run Graph
+    builder = PlaylistGraphBuilder(
+        llm_generator=llm_gen_wrapper,
+        db_fetcher=db_fetch_wrapper,
+        uri_validator=validate_spotify_uri_via_nestjs,
+        target_wildcards=5,
+        max_attempts=3
+    )
+    
+    workflow = builder.build()
+    
+    initial_state = {"event_description": request.event_description}
+    
+    try:
+        final_state = await workflow.ainvoke(initial_state)
+        playlist = final_state.get("final_playlist", [])
+    except Exception as e:
+        logger.error(f"Error during graph execution: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate playlist via LangGraph")
 
     if not playlist:
-        raise HTTPException(status_code=500, detail="Failed to generate playlist")
+        raise HTTPException(status_code=500, detail="Generated playlist was empty")
 
     # 7. Transform source field to is_new boolean
     return [
         RecommendedSong(
             title=song["title"],
             artist=song["artist"],
-            is_new=song.get("source") == "new_suggestion",
+            is_new=song.get("source", "user_library") == "new_suggestion",
         )
         for song in playlist
     ]

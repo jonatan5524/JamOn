@@ -1,8 +1,8 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from google.genai import errors
-import llm_service
-from llm_service import CircuitBreaker, AIServiceUnavailableError, with_resilience
+from app.services import llm
+from app.core.resilience import CircuitBreaker, AIServiceUnavailableError
 import time
 
 @pytest.fixture(autouse=True)
@@ -48,31 +48,40 @@ def test_circuit_breaker_half_open_after_timeout():
     assert cb.is_open() is False
     assert cb.state == "HALF-OPEN"
 
-@patch('llm_service.client')
+@patch('app.services.llm.client')
 def test_retries_on_rate_limit(mock_client):
     # Mock generate_content to fail twice then succeed
-    fail_response = errors.ClientError(code=429, response_json={"error": {"code": 429, "message": "Rate limit exceeded", "status": "RESOURCE_EXHAUSTED"}})
+    fail_response = errors.ClientError(
+        code=429,
+        response_json={
+            "error": {
+                "code": 429,
+                "message": "Rate limit exceeded",
+                "status": "RESOURCE_EXHAUSTED",
+            }
+        },
+    )
     success_response = MagicMock()
     success_response.text = '{"energy": 0.8}'
     
     mock_client.models.generate_content.side_effect = [fail_response, fail_response, success_response]
     
     # We need to bypass the real load_prompt or provide a mock
-    with patch('llm_service.load_prompt', return_value="mock prompt"):
+    with patch('app.services.llm.load_prompt', return_value="mock prompt {songs_list}"):
         # We also need to speed up tenacity retries for tests
         with patch('tenacity.nap.time.sleep', return_value=None):
-            result = llm_service.generate_audio_features([{"title": "Test", "artist": "Test"}])
+            result = llm.generate_audio_features([{"title": "Test", "artist": "Test"}])
             
     assert result == {"energy": 0.8}
     assert mock_client.models.generate_content.call_count == 3
 
-@patch('llm_service.client')
+@patch('app.services.llm.client')
 def test_circuit_breaker_prevents_calls_when_open(mock_client):
     cb = CircuitBreaker()
     cb.state = "OPEN"
     cb.last_failure_time = time.time()
     
     with pytest.raises(AIServiceUnavailableError):
-        llm_service.generate_audio_features([{"title": "Test", "artist": "Test"}])
+        llm.generate_audio_features([{"title": "Test", "artist": "Test"}])
         
     assert mock_client.models.generate_content.call_count == 0

@@ -1,100 +1,66 @@
 import os
-import sys
-import json
-import asyncio
-from dotenv import load_dotenv
+import logging
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from google.genai import errors
 
-# Load environment variables before importing other local modules
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+from app.api.endpoints import router
+from app.core.config import settings
+from app.core.resilience import AIServiceUnavailableError
 
-# Add current directory to sys.path to import local modules
-sys.path.append(BASE_DIR)
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
-from data.mock_data import MOCK_SONGS
-import llm_service
-from lyrics_service import fetch_lyrics_map
-from rag_engine import RagEngine, PlaylistGraphBuilder
+app = FastAPI(
+    title="JamOn - Data Processing Service",
+    description="""
+    This service handles all AI and vector-based computations for the JamOn project:
+    * **Vibe Analysis**: Analyzing natural language event descriptions.
+    * **RAG Engine**: Indexing and querying musical context from lyrics and audio features.
+    * **Playlist Generation**: Generating ranked recommendations using LLMs.
+    """,
+    version="1.1.0",
+    openapi_url="/api/v1/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
-async def mock_uri_validator(song: dict) -> bool:
-    """
-    Mock validator for local testing without the NestJS orchestrator.
-    In this mock, we assume all songs are valid.
-    """
-    print(f"   [Mock Validator] Checking: {song.get('title')} by {song.get('artist')}... VALID")
-    return True
-
-async def main():
-    if not os.environ.get("GEMINI_API_KEY"):
-        print("Error: GEMINI_API_KEY not found in environment variables.")
-        print("Please set it in a .env file or export it.")
-        return
-
-    print("--- Starting JamOn Agentic RAG POC ---")
-
-    # 1. Get Audio Features from LLM
-    print("\n1. Generating Audio Features for Mock Songs...")
-    songs_with_features = llm_service.generate_audio_features(MOCK_SONGS)
-    
-    if not songs_with_features:
-        print("Failed to generate audio features. Exiting.")
-        return
-
-    print(f"Generated features for {len(songs_with_features)} songs.")
-
-    print("\nFetching lyrics...")
-    lyrics_map = fetch_lyrics_map(MOCK_SONGS)
-    lyrics_found = sum(1 for lyrics in lyrics_map.values() if lyrics)
-    print(f"Fetched lyrics for {lyrics_found} songs.")
-
-    # 2. Index Songs in Vector DB
-    print("\n2. Indexing Songs into Vector DB...")
-    rag = RagEngine()
-    rag.add_songs(songs_with_features, lyrics_map)
-
-    # 3. Define Mock Event
-    mock_event = "A sad mood for a funeral."
-    print(f"\n3. Mock Event: '{mock_event}'")
-
-    # 4. Define Graph Wrappers
-    async def db_fetch_wrapper(query: str):
-        print(f"   [Graph] Querying Vector DB for: {query}")
-        return await asyncio.to_thread(rag.query_songs, query, n_results=10)
-        
-    async def llm_gen_wrapper(prompt: str, count: int, rejected: list):
-        print(f"   [Graph] LLM Generating {count} new songs (Avoiding: {len(rejected)} rejected)")
-        # We fetch context here for the LLM prompt
-        context = await asyncio.to_thread(rag.query_songs, prompt, n_results=10)
-        return await asyncio.to_thread(llm_service.generate_playlist, prompt, context, count, rejected)
-
-    # 5. Build and Run Graph
-    print("\n5. Executing Agentic LangGraph Workflow...")
-    builder = PlaylistGraphBuilder(
-        llm_generator=llm_gen_wrapper,
-        db_fetcher=db_fetch_wrapper,
-        uri_validator=mock_uri_validator,
-        target_wildcards=5,
-        max_attempts=3
+@app.exception_handler(AIServiceUnavailableError)
+async def ai_service_unavailable_handler(request, exc):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "AI Service currently unavailable (Circuit Breaker OPEN)"},
     )
-    
-    workflow = builder.build()
-    initial_state = {"event_description": mock_event}
-    
-    try:
-        final_state = await workflow.ainvoke(initial_state)
-        playlist = final_state.get("final_playlist", [])
-        
-        print("\n--- Final Agentic Playlist ---")
-        for i, song in enumerate(playlist):
-            source = "NEW" if song.get("source") == "new_suggestion" else "LIBRARY"
-            print(f"{i+1}. [{source}] {song['title']} - {song['artist']}")
-            
-        print(f"\nTotal Songs: {len(playlist)}")
-        print(f"Attempts taken: {final_state.get('attempts')}")
-        
-    except Exception as e:
-        print(f"\nError during graph execution: {e}")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+@app.exception_handler(errors.ClientError)
+async def client_error_handler(request, exc):
+    if hasattr(exc, 'code') and exc.code == 429:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Gemini API Rate Limit Exceeded"},
+        )
+    return JSONResponse(
+        status_code=getattr(exc, 'code', 400) or 400,
+        content={"detail": getattr(exc, 'message', str(exc))},
+    )
 
+@app.exception_handler(errors.ServerError)
+async def server_error_handler(request, exc):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": f"Gemini API Server Error: {getattr(exc, 'message', str(exc))}"},
+    )
+
+@app.on_event("startup")
+async def startup():
+    if not settings.GEMINI_API_KEY:
+        logger.warning("GEMINI_API_KEY not set. LLM calls will fail.")
+    if not os.environ.get("GENIUS_ACCESS_TOKEN"):
+        logger.warning("GENIUS_ACCESS_TOKEN not set. Lyrics lookup will be skipped.")
+    logger.info("Data engine ready.")
+
+app.include_router(router)

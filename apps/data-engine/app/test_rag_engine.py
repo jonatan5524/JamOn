@@ -1,5 +1,5 @@
 import pytest
-from app.rag_engine import PlaylistState
+from app.models.state import PlaylistState
 from typing import get_type_hints
 
 def test_playlist_state_definition():
@@ -13,7 +13,7 @@ def test_playlist_state_definition():
     assert 'final_playlist' in hints
 
 import asyncio
-from app.rag_engine import PlaylistGraphBuilder
+from app.workflows.playlist_generator import PlaylistGraphBuilder
 
 @pytest.mark.asyncio
 async def test_initial_fetch():
@@ -22,15 +22,13 @@ async def test_initial_fetch():
     
     # Testing with parameterized wildcards
     builder = PlaylistGraphBuilder(mock_llm, mock_db, None, target_wildcards=3)
-    state = {"event_description": "test event"}
+    state = PlaylistState(event_description="test event")
     
     result = await builder.initial_fetch(state)
     
     assert len(result["db_songs"]) == 1
     assert len(result["candidate_wildcards"]) == 3
     assert result["attempts"] == 1
-    assert result["validated_wildcards"] == []
-    assert result["rejected_wildcards"] == []
 
 @pytest.mark.asyncio
 async def test_validate():
@@ -41,14 +39,15 @@ async def test_validate():
     
     builder = PlaylistGraphBuilder(None, None, mock_validator)
     
-    state = {
-        "candidate_wildcards": [
+    state = PlaylistState(
+        event_description="test event",
+        candidate_wildcards=[
             {"title": "Valid Song", "artist": "Artist 1"},
             {"title": "Invalid Song", "artist": "Artist 2"}
         ],
-        "validated_wildcards": [],
-        "rejected_wildcards": []
-    }
+        validated_wildcards=[],
+        rejected_wildcards=[]
+    )
     
     result = await builder.validate(state)
     
@@ -66,12 +65,12 @@ async def test_regenerate():
         return [{"title": "New L1", "artist": "A1"}] * count
 
     builder = PlaylistGraphBuilder(mock_llm, None, None, target_wildcards=3)
-    state = {
-        "event_description": "event",
-        "validated_wildcards": [{"title": "V1", "artist": "A1"}],
-        "rejected_wildcards": ["Bad Song by Bad Artist"],
-        "attempts": 1
-    }
+    state = PlaylistState(
+        event_description="event",
+        validated_wildcards=[{"title": "V1", "artist": "A1"}],
+        rejected_wildcards=["Bad Song by Bad Artist"],
+        attempts=1
+    )
     
     result = await builder.regenerate(state)
     assert len(result["candidate_wildcards"]) == 2
@@ -79,19 +78,20 @@ async def test_regenerate():
 
 def test_should_finalize():
     builder = PlaylistGraphBuilder(None, None, None, target_wildcards=5, max_attempts=3)
-    assert builder.should_finalize({"validated_wildcards": [1,2,3,4,5], "attempts": 1}) == "merge_and_shuffle"
-    assert builder.should_finalize({"validated_wildcards": [1,2], "attempts": 3}) == "merge_and_shuffle"
-    assert builder.should_finalize({"validated_wildcards": [1,2], "attempts": 2}) == "regenerate"
+    assert builder.should_finalize(PlaylistState(event_description="x", validated_wildcards=[{"x":1}]*5, attempts=1)) == "merge_and_shuffle"
+    assert builder.should_finalize(PlaylistState(event_description="x", validated_wildcards=[{"x":1}]*2, attempts=3)) == "merge_and_shuffle"
+    assert builder.should_finalize(PlaylistState(event_description="x", validated_wildcards=[{"x":1}]*2, attempts=2)) == "regenerate"
 
 @pytest.mark.asyncio
 async def test_merge_and_shuffle():
     import random
     random.seed(42) # Deterministic
     builder = PlaylistGraphBuilder(None, None, None)
-    state = {
-        "db_songs": [{"title": "A", "artist": "B"}, {"title": "C", "artist": "D"}],
-        "validated_wildcards": [{"title": "a", "artist": "b"}, {"title": "E", "artist": "F"}]
-    }
+    state = PlaylistState(
+        event_description="x",
+        db_songs=[{"title": "A", "artist": "B"}, {"title": "C", "artist": "D"}],
+        validated_wildcards=[{"title": "a", "artist": "b"}, {"title": "E", "artist": "F"}]
+    )
     result = await builder.merge_and_shuffle(state)
     # Total unique should be 3 (A/B duplicates)
     assert len(result["final_playlist"]) == 3

@@ -1,6 +1,6 @@
 import httpx
-import os
 import logging
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -8,7 +8,7 @@ async def validate_spotify_uri_via_nestjs(song: dict) -> bool:
     """
     Makes an HTTP call to the NestJS orchestrator to validate if a song exists on Spotify.
     """
-    orchestrator_url = os.environ.get("ORCHESTRATOR_URL", "http://localhost:3000")
+    orchestrator_url = settings.ORCHESTRATOR_URL
     title = song.get("title", "")
     artist = song.get("artist", "")
     

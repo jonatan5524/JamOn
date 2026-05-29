@@ -86,6 +86,42 @@ python main.py
 6. **Retrieval**: Queries the database with a mock event description ("A chill late night coding session...") to find the most semantically relevant songs.
 7. **Playlist Generation**: Sends the retrieved context songs and the event description to `gemini-1.5-flash` to generate a curated playlist, potentially adding new suggestions.
 
+## RAG Flow Architecture
+
+The "Text-ification" RAG approach used in JamOn moves away from raw audio numbers and relies on semantic descriptions that LLMs can reason about.
+
+### 1. Indexing (The "Text-ification" Pipeline)
+*Triggered during library sync.*
+
+- **Data Enrichment**: For each song, the system uses **Gemini 1.5 Flash** to "hallucinate" descriptive metadata (Energy, Mood, Vibe Tags) based on its title, artist, and genres.
+- **Lyrics Retrieval**: The engine fetches lyrics snippets via the **Genius API** to provide deep semantic context.
+- **Semantic Concatenation**: It constructs a rich text document for each song:
+  ```text
+  Title: Blinding Lights | Artist: The Weeknd
+  Energy: High, driving, synth-heavy
+  Mood: Nostalgic but energetic, late-night driving vibe
+  Tags: 80s Synthwave, Dark Pop, Fast Tempo
+  Lyrics: "I've been on my own for long enough..."
+  ```
+- **Vectorization**: This text is embedded using `text-embedding-004` (or `gemini-embedding-2-preview`) and stored in a local **ChromaDB** instance.
+
+### 2. Retrieval (HyDE + Vector Search)
+*Triggered during playlist generation.*
+
+- **Query Expansion (HyDE)**: To improve retrieval, the system uses **Hypothetical Document Embeddings (HyDE)**. It asks Gemini to describe what a *perfect* song for the user's event (e.g., "A rainy day in Seattle") would sound like.
+- **Vector Search**: The hypothetical description is embedded and used to query ChromaDB for the Top 15-20 most semantically similar tracks from the user's library.
+- **Threshold Filtering**: Songs are filtered by distance to ensure the retrieved context is actually relevant to the request.
+
+### 3. Generation (Agentic LangGraph Workflow)
+*The "DJ" Brain.*
+
+The final playlist is generated using a **LangGraph**-based agentic workflow:
+1. **Initial Fetch**: Retrieves matching songs from the database.
+2. **Wildcard Generation**: Asks Gemini to suggest **5 NEW songs** (not in the user's library) that bridge the gaps between the retrieved tracks.
+3. **Validation Loop**: The agent checks if the new suggestions are valid (via Spotify Search). 
+   - If a song is invalid, it is added to a "Rejected" list and the agent **regenerates** it (up to 3 attempts).
+4. **Final Shuffle**: Combines the library matches and validated wildcards into a cohesive, shuffled playlist.
+
 ## Resilience & Stability
 
 To handle AI model limits and potential outages gracefully, this service implements a **Multi-Layer Resilience Strategy**.

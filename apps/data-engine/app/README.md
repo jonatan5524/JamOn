@@ -41,17 +41,18 @@ Run the main script:
 python main.py
 ```
 
-## Running the FastAPI Server (server.py)
+## Running the FastAPI Server (main.py)
 
-`server.py` exposes a REST API for the data engine (used by the NestJS orchestrator).
+`main.py` exposes a REST API for the data engine (used by the NestJS orchestrator).
 
 1. Make sure your `.env` file is in place with `GEMINI_API_KEY` set (see Setup above).
 
 2. Optional: set `GENIUS_ACCESS_TOKEN` if you want lyrics from Genius.
 
-3. Start the server with Uvicorn:
+3. Start the server from the `apps/data-engine` directory (one level up) to ensure module imports work:
    ```bash
-   uvicorn server:app --host 127.0.0.1 --port 8000 --reload
+   cd JamOn/apps/data-engine
+   uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
    ```
 
 4. The API will be available at `http://127.0.0.1:8000`.

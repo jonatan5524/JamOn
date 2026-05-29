@@ -2,14 +2,9 @@ import os
 import sys
 import asyncio
 import logging
-from dotenv import load_dotenv
 
 # Enable debug logging for POC
 logging.basicConfig(level=logging.DEBUG)
-
-# Load environment variables
-dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
-load_dotenv(dotenv_path)
 
 # Add project root to sys.path to allow absolute imports from 'app'
 # Assuming we run this from the project root (apps/data-engine/)

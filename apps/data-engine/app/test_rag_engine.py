@@ -18,7 +18,10 @@ from app.workflows.playlist_generator import PlaylistGraphBuilder
 @pytest.mark.asyncio
 async def test_initial_fetch():
     async def mock_db(query): return [{"title": "DB1", "artist": "A1"}]
-    async def mock_llm(prompt, count, rejected): return [{"title": "L1", "artist": "A2"}] * count
+    async def mock_llm(prompt, count, rejected, context): 
+        assert len(context) == 1
+        assert context[0]["title"] == "DB1"
+        return [{"title": "L1", "artist": "A2"}] * count
     
     # Testing with parameterized wildcards
     builder = PlaylistGraphBuilder(mock_llm, mock_db, None, target_wildcards=3)
@@ -59,9 +62,10 @@ async def test_validate():
 
 @pytest.mark.asyncio
 async def test_regenerate():
-    async def mock_llm(prompt, count, rejected):
+    async def mock_llm(prompt, count, rejected, context):
         assert count == 2 # 3 target - 1 validated
         assert "Bad Song by Bad Artist" in rejected
+        assert context == []
         return [{"title": "New L1", "artist": "A1"}] * count
 
     builder = PlaylistGraphBuilder(mock_llm, None, None, target_wildcards=3)

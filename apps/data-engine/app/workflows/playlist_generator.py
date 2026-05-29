@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class PlaylistGraphBuilder:
     def __init__(
         self, 
-        llm_generator: Callable[[str, int, List[str]], Awaitable[List[Dict[str, Any]]]], 
+        llm_generator: Callable[[str, int, List[str], List[Dict[str, Any]]], Awaitable[List[Dict[str, Any]]]], 
         db_fetcher: Callable[[str], Awaitable[List[Dict[str, Any]]]], 
         uri_validator: Callable[[Dict[str, Any]], Awaitable[bool]], 
         target_wildcards: int = 5, 
@@ -25,11 +25,14 @@ class PlaylistGraphBuilder:
 
     async def initial_fetch(self, state: PlaylistState) -> Dict[str, Any]:
         logger.info(f"Starting initial fetch for event: {state.event_description}")
-        # Run DB fetch and LLM wildcard generation concurrently
-        db_task = self.db_fetcher(state.event_description)
-        llm_task = self.llm_generator(state.event_description, self.target_wildcards, [])
-        
-        db_songs, candidate_wildcards = await asyncio.gather(db_task, llm_task)
+        # Sequential: Fetch DB songs first, then use them as context for LLM
+        db_songs = await self.db_fetcher(state.event_description)
+        candidate_wildcards = await self.llm_generator(
+            state.event_description, 
+            self.target_wildcards, 
+            [], 
+            db_songs
+        )
         
         return {
             "db_songs": db_songs,
@@ -67,7 +70,8 @@ class PlaylistGraphBuilder:
         new_candidates = await self.llm_generator(
             state.event_description, 
             missing, 
-            state.rejected_wildcards
+            state.rejected_wildcards,
+            state.db_songs
         )
         
         return {

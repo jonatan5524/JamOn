@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -58,9 +59,11 @@ async def server_error_handler(request, exc):
 @app.on_event("startup")
 async def startup():
     if not settings.GEMINI_API_KEY:
-        logger.warning("GEMINI_API_KEY not set. LLM calls will fail.")
+        logger.error("GEMINI_API_KEY not set. Exiting.")
+        sys.exit(1)
     if not os.environ.get("GENIUS_ACCESS_TOKEN"):
-        logger.warning("GENIUS_ACCESS_TOKEN not set. Lyrics lookup will be skipped.")
+        logger.error("GENIUS_ACCESS_TOKEN not set. Exiting.")
+        sys.exit(1)
     logger.info("Data engine ready.")
 
 app.include_router(router)

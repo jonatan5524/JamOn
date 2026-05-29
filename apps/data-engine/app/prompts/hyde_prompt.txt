@@ -1,0 +1,10 @@
+Act as a music expert. Given an event description, generate a hypothetical "perfect" song that fits the vibe.
+
+Event: {event_description}
+
+Provide the following:
+1. A fictional Song Title and Artist.
+2. 3-4 lines of lyrics imagery/themes that would appear in this song.
+3. A descriptive sentence about the energy, mood, and genre.
+
+Format the output as a single descriptive paragraph without labels.

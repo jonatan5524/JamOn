@@ -1,10 +1,15 @@
 import os
 import sys
 import asyncio
+import logging
 from dotenv import load_dotenv
 
+# Enable debug logging for POC
+logging.basicConfig(level=logging.DEBUG)
+
 # Load environment variables
-load_dotenv()
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(dotenv_path)
 
 # Add project root to sys.path to allow absolute imports from 'app'
 # Assuming we run this from the project root (apps/data-engine/)
@@ -25,46 +30,94 @@ async def mock_uri_validator(song: dict) -> bool:
     print(f"   [Mock Validator] Checking: {song.get('title')} by {song.get('artist')}... VALID")
     return True
 
+def get_user_songs(user_name: str):
+    """
+    Prompt the user to input songs for a specific person.
+    """
+    print(f"\n--- Input Top Songs for {user_name} ---")
+    print("Paste your list here (Format: 'Title - Artist', one per line).")
+    print("Press Enter twice (an empty line) when finished, or just Enter once to use mock data.")
+    
+    lines = []
+    while True:
+        try:
+            line = input().strip()
+            if not line:
+                break
+            lines.append(line)
+        except EOFError:
+            break
+            
+    songs = []
+    for line in lines:
+        if " - " in line:
+            parts = line.split(" - ", 1)
+            songs.append({"title": parts[0].strip(), "artist": parts[1].strip()})
+            
+    if not songs:
+        print(f"No songs entered. Using {len(MOCK_SONGS)} mock songs for {user_name}.")
+        return MOCK_SONGS
+    
+    print(f"Added {len(songs)} songs for {user_name}.")
+    return songs
+
+async def process_and_index(rag: RagEngine, user_name: str, songs: list):
+    """
+    Generate features, fetch lyrics, and index songs for a user.
+    """
+    print(f"\nProcessing {len(songs)} songs for {user_name}...")
+    
+    # 1. Get Audio Features from LLM
+    print(f"1. Generating Audio Features for {user_name}'s songs...")
+    songs_with_features = await asyncio.to_thread(llm.generate_audio_features, songs)
+    
+    if not songs_with_features:
+        print(f"Failed to generate audio features for {user_name}. Using original list.")
+        songs_with_features = songs
+
+    # 2. Fetch lyrics
+    print(f"2. Fetching lyrics for {user_name}'s songs...")
+    lyrics_map = await asyncio.to_thread(fetch_lyrics_map, songs)
+    
+    # 3. Index Songs in Vector DB
+    print(f"3. Indexing {user_name}'s songs into Vector DB...")
+    await asyncio.to_thread(rag.add_songs, songs_with_features, lyrics_map)
+
 async def main():
     if not settings.GEMINI_API_KEY:
         print("Error: GEMINI_API_KEY not found in environment variables.")
         return
-
-    print("--- Starting JamOn Agentic RAG POC ---")
-
-    # 1. Get Audio Features from LLM
-    print("\n1. Generating Audio Features for Mock Songs...")
-    songs_with_features = await asyncio.to_thread(llm.generate_audio_features, MOCK_SONGS)
-    
-    if not songs_with_features:
-        print("Failed to generate audio features. Exiting.")
+        
+    if not os.environ.get("GENIUS_ACCESS_TOKEN"):
+        print("Error: GENIUS_ACCESS_TOKEN not found in environment variables. Please add it to apps/data-engine/app/.env")
         return
 
-    print(f"Generated features for {len(songs_with_features)} songs.")
-
-    print("\nFetching lyrics...")
-    lyrics_map = await asyncio.to_thread(fetch_lyrics_map, MOCK_SONGS)
-    lyrics_found = sum(1 for lyrics in lyrics_map.values() if lyrics)
-    print(f"Fetched lyrics for {lyrics_found} songs.")
-
-    # 2. Index Songs in Vector DB
-    print("\n2. Indexing Songs into Vector DB...")
+    print("--- JamOn Multi-User Agentic RAG POC ---")
+    
+    # Initialize RAG Engine
     rag = RagEngine()
-    await asyncio.to_thread(rag.add_songs, songs_with_features, lyrics_map)
+
+    # Get songs for User A and User B
+    user_a_songs = get_user_songs("User A")
+    user_b_songs = get_user_songs("User B")
+
+    # Process and index both
+    await process_and_index(rag, "User A", user_a_songs)
+    await process_and_index(rag, "User B", user_b_songs)
 
     # 3. Define Mock Event
-    mock_event = "A high-energy rooftop pool party with house music"
-    print(f"\n3. Mock Event: '{mock_event}'")
+    mock_event = input("\nDescribe the event vibe (e.g., 'Late night chill study session'): ").strip()
+    if not mock_event:
+        mock_event = "A high-energy rooftop pool party with house music"
+        print(f"Using default event: '{mock_event}'")
 
     # 4. Define Graph Wrappers
     async def db_fetch_wrapper(query: str):
         print(f"   [Graph] Querying Vector DB for: {query}")
-        return await asyncio.to_thread(rag.query_songs, query, n_results=10)
+        return await rag.query_songs(query, n_results=15)
         
-    async def llm_gen_wrapper(prompt: str, count: int, rejected: list):
+    async def llm_gen_wrapper(prompt: str, count: int, rejected: list, context: list):
         print(f"   [Graph] LLM Generating {count} new songs (Avoiding: {len(rejected)} rejected)")
-        # We fetch context here for the LLM prompt
-        context = await asyncio.to_thread(rag.query_songs, prompt, n_results=10)
         return await asyncio.to_thread(llm.generate_playlist, prompt, context, count, rejected)
 
     # 5. Build and Run Graph
@@ -84,10 +137,11 @@ async def main():
         final_state = await workflow.ainvoke(initial_state)
         playlist = final_state.get("final_playlist", [])
         
-        print("\n--- Final Agentic Playlist ---")
+        print("\n--- Final Joint Agentic Playlist ---")
         for i, song in enumerate(playlist):
             source = "NEW" if song.get("source") == "new_suggestion" else "LIBRARY"
-            print(f"{i+1}. [{source}] {song['title']} - {song['artist']}")
+            dist_str = f" [Dist: {song['distance']:.3f}]" if "distance" in song else ""
+            print(f"{i+1}. [{source}]{dist_str} {song['title']} - {song['artist']}")
             
         print(f"\nTotal Songs: {len(playlist)}")
         print(f"Attempts taken: {final_state.get('attempts')}")
@@ -97,3 +151,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

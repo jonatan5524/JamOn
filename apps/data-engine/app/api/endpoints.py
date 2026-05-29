@@ -57,12 +57,10 @@ async def recommend(request: RecommendRequest):
 
     # 5. Define wrappers for the Graph to bridge Sync/Async
     async def db_fetch_wrapper(query: str):
-        # Retrieve top 20 context songs (Synchronous ChromaDB query)
-        return await asyncio.to_thread(rag.query_songs, query, n_results=20)
+        # Retrieve top 20 context songs (Asynchronous ChromaDB query with HyDE)
+        return await rag.query_songs(query, n_results=20)
 
-    async def llm_gen_wrapper(prompt: str, count: int, rejected: List[str]):
-        # We need context songs for the LLM prompt
-        context = await asyncio.to_thread(rag.query_songs, prompt, n_results=10)
+    async def llm_gen_wrapper(prompt: str, count: int, rejected: List[str], context: List[dict]):
         # Call the llm.generate_playlist (Synchronous Google GenAI call)
         return await asyncio.to_thread(
             llm.generate_playlist, prompt, context, count, rejected

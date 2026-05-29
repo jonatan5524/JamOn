@@ -13,12 +13,8 @@ import {
   MOCK_EVENT_DETAILS,
   MOCK_EVENT_SUMMARIES,
 } from "@/lib/mock-event";
-import type {
-  CreateEventRequest,
-  JoinEventRequest,
-  PlaylistResponse,
-} from "@/types/api";
-import type { EventDetail, EventSummary } from "@/types/event";
+import type { CreateEventRequest, PlaylistResponse } from "@/types/api";
+import type { EventDetail, EventSummary, Participant } from "@/types/event";
 import api from "./api";
 
 const USE_MOCKS = import.meta.env.VITE_USE_MOCKS !== "false";
@@ -27,31 +23,85 @@ const USE_MOCKS = import.meta.env.VITE_USE_MOCKS !== "false";
 export const listEvents = (): Promise<EventSummary[]> =>
   USE_MOCKS
     ? delay(MOCK_EVENT_SUMMARIES)
-    : apiFetch<EventSummary[]>("/api/events");
+    : apiFetch<EventSummary[]>("/events");
 
-// GET /api/events/:id — backend stub; response shape speculative.
-export const getEvent = (eventId: string): Promise<EventDetail> =>
-  USE_MOCKS
-    ? delay(
-        MOCK_EVENT_DETAILS[eventId] ?? { ...MOCK_EVENT_DETAIL, id: eventId },
-      )
-    : apiFetch<EventDetail>(`/api/events/${eventId}`);
+interface BackendUser {
+  id: string;
+  displayName?: string | null;
+  email?: string | null;
+  profileImage?: string | null;
+}
 
-// No matching backend endpoint yet. Likely a query param on listEvents
-// or a dedicated GET /api/events/by-code/:code.
+interface BackendParticipant {
+  userId: string;
+  joinedAt: string;
+  user?: BackendUser;
+}
+
+interface BackendEvent {
+  id: string;
+  code: string;
+  title: string;
+  context: string | null;
+  createdAt: string;
+  participants?: BackendParticipant[];
+}
+
+const PARTICIPANT_COLORS = [
+  "#f87171", "#fb923c", "#fbbf24", "#a3e635",
+  "#34d399", "#22d3ee", "#60a5fa", "#a78bfa", "#f472b6",
+];
+
+const colorForUser = (userId: string): string => {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash * 31 + userId.charCodeAt(i)) | 0;
+  }
+  return PARTICIPANT_COLORS[Math.abs(hash) % PARTICIPANT_COLORS.length];
+};
+
+const mapParticipant = (p: BackendParticipant): Participant => {
+  const name = p.user?.displayName?.trim() || p.user?.email || p.userId;
+  return {
+    id: p.userId,
+    name,
+    initial: name.charAt(0).toUpperCase(),
+    colorHex: colorForUser(p.userId),
+    source: "spotify",
+    activity: 0,
+  };
+};
+
+// GET /api/events/:id
+export const getEvent = async (eventId: string): Promise<EventDetail> => {
+  const raw = await apiFetch<BackendEvent>(`/events/${eventId}`);
+  const participants = (raw.participants ?? []).map(mapParticipant);
+  return {
+    id: String(raw.id),
+    code: raw.code,
+    name: raw.title,
+    description: raw.context ?? "",
+    participantCount: participants.length,
+    inviteUrl: `${window.location.origin}/join/${raw.code}`,
+    participants,
+    mix: null,
+    contributions: [],
+  };
+};
+
+// GET /api/events/by-code/:code
 export const findEventByCode = async (code: string): Promise<EventSummary> => {
   const normalized = code.trim().toUpperCase();
-  if (USE_MOCKS) {
-    const summary = MOCK_EVENT_SUMMARIES.find((e) => e.code === normalized);
-    if (!summary) {
-      await delay(null, 400);
-      throw new Error("Event not found");
-    }
-    return delay(summary);
-  }
-  return apiFetch<EventSummary>(
-    `/api/events/by-code/${encodeURIComponent(normalized)}`,
+  const raw = await apiFetch<BackendEvent>(
+    `/events/by-code/${encodeURIComponent(normalized)}`,
   );
+  return {
+    id: String(raw.id),
+    code: raw.code,
+    name: raw.title,
+    description: raw.context ?? "",
+    participantCount: raw.participants?.length ?? 0,
+  };
 };
 
 // POST /api/events
@@ -68,17 +118,10 @@ export const createEvent = async (
   return response.data;
 };
 
-// POST /api/events/:id/join
-export const joinEvent = (
-  eventId: string,
-  payload: JoinEventRequest,
-): Promise<EventDetail> =>
-  USE_MOCKS
-    ? delay({ ...MOCK_EVENT_DETAIL, id: eventId })
-    : apiFetch<EventDetail>(`/api/events/${eventId}/join`, {
-        method: "POST",
-        body: payload,
-      });
+// POST /api/events/:id/join — JWT-guarded, user from token
+export const joinEvent = async (eventId: string): Promise<void> => {
+  await api.post(`/events/${eventId}/join`);
+};
 
 // POST /api/events/:id/generate-playlist
 // Backend stub. Legacy POST /playlists/generate returns PlaylistResponse.
@@ -107,7 +150,7 @@ export const generateEventPlaylist = async (
     });
   }
   return apiFetch<PlaylistResponse>(
-    `/api/events/${eventId}/generate-playlist`,
+    `/events/${eventId}/generate-playlist`,
     { method: "POST" },
   );
 };

@@ -9,6 +9,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { User } from "./modules/user/user.entity";
 import { DataSource } from "typeorm";
 import { Event } from "./modules/event/event.entity";
+import { EventParticipant } from "./modules/event/event-participant.entity";
 
 @Module({
   imports: [
@@ -26,7 +27,7 @@ import { Event } from "./modules/event/event.entity";
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
-        entities: [User, Event],
+        entities: [User, Event, EventParticipant],
         synchronize: true,
         autoLoadEntities: true
       }),

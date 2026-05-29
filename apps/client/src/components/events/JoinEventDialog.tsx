@@ -2,7 +2,8 @@ import { useCallback, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Camera, Keyboard, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { findEventByCode } from "@/lib/api/index";
+import { toast } from "sonner";
+import { findEventByCode, joinEvent } from "@/lib/api/index";
 import { Button } from "@/components/ui/button";
 import CodeInput from "@/components/ui/code-input";
 import Modal from "@/components/ui/modal";
@@ -27,10 +28,18 @@ const JoinEventForm = ({ onClose }: { onClose: () => void }) => {
   const [touched, setTouched] = useState(false);
 
   const findMutation = useMutation<EventSummary, Error, string>({
-    mutationFn: (input) => findEventByCode(input),
+    mutationFn: async (input) => {
+      const event = await findEventByCode(input);
+      await joinEvent(event.id);
+      return event;
+    },
     onSuccess: (event) => {
+      toast.success(`Joined ${event.name}`);
       onClose();
       navigate(`/events/${event.id}`);
+    },
+    onError: () => {
+      toast.error("Failed to join event");
     },
   });
 

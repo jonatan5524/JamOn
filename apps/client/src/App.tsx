@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Event from "./pages/Event";
+import JoinByCode from "./pages/JoinByCode";
 import UserMenu from "@/components/layout/UserMenu";
 import { useSpotifyAuth } from "./hooks/use-spotify-auth";
 
@@ -46,6 +47,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Event />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/join/:code"
+            element={
+              <ProtectedRoute>
+                <JoinByCode />
               </ProtectedRoute>
             }
           />

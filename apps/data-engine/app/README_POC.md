@@ -11,9 +11,10 @@ The POC simulates an event with multiple users. It performs the following:
 
 ## Prerequisites
 
-- Python 3.14+
+- Python 3.10+
 - `GEMINI_API_KEY` set in your `.env` file (at `apps/data-engine/app/.env`).
 - `GENIUS_ACCESS_TOKEN` (Optional) for lyrics lookup.
+- `LLM_PROVIDER` and `VECTOR_DB_PROVIDER` (Optional, defaults to Gemini/Chroma).
 
 ## How to Run
 
@@ -64,13 +65,13 @@ If you want to test with your actual music taste, here are two ways to get your 
 
 3.  **Observe the Graph**: The console will show the LangGraph node execution:
     *   `[Graph] Querying Vector DB`: Searching for semantic matches in the combined library.
-    *   `[Graph] LLM Generating`: Asking Gemini to find new songs that bridge the gaps.
+    *   `[Graph] LLM Generating`: Asking the configured **DJProvider** to find new songs that bridge the gaps.
     *   `[Mock Validator]`: Simulating the Spotify URI check.
 4.  **Final Result**: A complete playlist will be printed, labeling each track as `[LIBRARY]` (from the input) or `[NEW]` (AI discovery).
 
 ## Why This Exists?
 
 This tool ensures that:
-- The **RAG Logic** correctly retrieves relevant songs from multiple users.
+- The **RAG Logic** correctly retrieves relevant songs from multiple users using the modular provider system.
 - The **LangGraph Loop** correctly handles validation failures and regeneration.
-- The **LLM Prompts** are producing high-quality, vibe-aligned recommendations.
+- The **LLM Prompts** are producing high-quality, vibe-aligned recommendations across different models.

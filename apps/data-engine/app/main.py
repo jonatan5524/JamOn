@@ -1,20 +1,48 @@
 import os
 import sys
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from google.genai import errors
 
-from app.api.endpoints import router
 from app.core.config import settings
 from app.core.resilience import AIServiceUnavailableError
+from app.providers.containers import AppContainer
+from app.providers.exceptions import ConfigurationError, EmbeddingError, TaggingError, GenerationError
+from app.providers.llm.factory import LLMProviderFactory
+from app.providers.vectordb.factory import VectorStoreFactory
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.LLM_PROVIDER == "gemini" and not settings.GEMINI_API_KEY:
+        logger.error("GEMINI_API_KEY not set. Exiting.")
+        sys.exit(1)
+    if not os.environ.get("GENIUS_ACCESS_TOKEN"):
+        logger.error("GENIUS_ACCESS_TOKEN not set. Exiting.")
+        sys.exit(1)
+
+    try:
+        llm_container, embed_config = LLMProviderFactory.create(settings.LLM_PROVIDER)
+        vector_store = VectorStoreFactory.create(settings.VECTOR_DB_PROVIDER, embed_config)
+        app.state.providers = AppContainer(llm=llm_container, vector_store=vector_store)
+        logger.info(
+            f"Providers ready — LLM: {settings.LLM_PROVIDER}, "
+            f"VectorDB: {settings.VECTOR_DB_PROVIDER}, "
+            f"Collection: {vector_store.collection_name}"
+        )
+    except ConfigurationError as e:
+        logger.error(f"Provider configuration error: {e}")
+        sys.exit(1)
+
+    yield
+
 
 app = FastAPI(
     title="JamOn - Data Processing Service",
@@ -24,46 +52,33 @@ app = FastAPI(
     * **RAG Engine**: Indexing and querying musical context from lyrics and audio features.
     * **Playlist Generation**: Generating ranked recommendations using LLMs.
     """,
-    version="1.1.0",
+    version="2.0.0",
     openapi_url="/api/v1/openapi.json",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan,
 )
+
 
 @app.exception_handler(AIServiceUnavailableError)
 async def ai_service_unavailable_handler(request, exc):
-    return JSONResponse(
-        status_code=503,
-        content={"detail": "AI Service currently unavailable (Circuit Breaker OPEN)"},
-    )
+    return JSONResponse(status_code=503, content={"detail": "AI Service unavailable (Circuit Breaker OPEN)"})
 
-@app.exception_handler(errors.ClientError)
-async def client_error_handler(request, exc):
-    if hasattr(exc, 'code') and exc.code == 429:
-        return JSONResponse(
-            status_code=429,
-            content={"detail": "Gemini API Rate Limit Exceeded"},
-        )
-    return JSONResponse(
-        status_code=getattr(exc, 'code', 400) or 400,
-        content={"detail": getattr(exc, 'message', str(exc))},
-    )
 
-@app.exception_handler(errors.ServerError)
-async def server_error_handler(request, exc):
-    return JSONResponse(
-        status_code=503,
-        content={"detail": f"Gemini API Server Error: {getattr(exc, 'message', str(exc))}"},
-    )
+@app.exception_handler(EmbeddingError)
+async def embedding_error_handler(request, exc):
+    return JSONResponse(status_code=503, content={"detail": f"Embedding service error: {exc}"})
 
-@app.on_event("startup")
-async def startup():
-    if not settings.GEMINI_API_KEY:
-        logger.error("GEMINI_API_KEY not set. Exiting.")
-        sys.exit(1)
-    if not os.environ.get("GENIUS_ACCESS_TOKEN"):
-        logger.error("GENIUS_ACCESS_TOKEN not set. Exiting.")
-        sys.exit(1)
-    logger.info("Data engine ready.")
 
+@app.exception_handler(TaggingError)
+async def tagging_error_handler(request, exc):
+    return JSONResponse(status_code=503, content={"detail": f"Tagging service error: {exc}"})
+
+
+@app.exception_handler(GenerationError)
+async def generation_error_handler(request, exc):
+    return JSONResponse(status_code=503, content={"detail": f"Generation service error: {exc}"})
+
+
+from app.api.endpoints import router
 app.include_router(router)

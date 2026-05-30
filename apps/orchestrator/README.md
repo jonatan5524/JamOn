@@ -5,7 +5,7 @@ NestJS service that takes LLM-generated song recommendations, resolves them to S
 ## How It Works
 
 1. Receives a request with an event description and a Spotify access token
-2. Calls the data-engine for song recommendations (currently mocked)
+2. Calls the **Python data-engine** for semantic song recommendations
 3. Searches Spotify for each song to get track URIs
 4. Creates a playlist on the user's Spotify account
 5. Adds the resolved tracks to the playlist
@@ -76,6 +76,7 @@ Content-Type: application/json
 | 400 | Validation error | Missing or invalid `eventDescription` |
 | 401 | `SPOTIFY_AUTH_EXPIRED` | Missing Bearer token or Spotify rejected the token |
 | 422 | `NO_TRACKS_RESOLVED` | No songs found on Spotify or data-engine returned empty |
+| 429 | `AI_SERVICE_BUSY` | The AI engine (Python service) is rate-limited or busy |
 | 500 | `PLAYLIST_CREATION_FAILED` | Spotify API error during playlist creation or track addition |
 
 ## Required Spotify OAuth Scopes
@@ -103,7 +104,7 @@ src/
     │   └── spotify.types.ts             # Spotify response types
     ├── data-engine/
     │   ├── data-engine.module.ts
-    │   └── data-engine.service.ts       # Mock — returns hardcoded songs
+    │   └── data-engine.service.ts       # HTTP client for Python data-engine
     └── playlist/
         ├── playlist.module.ts
         ├── playlist.controller.ts       # POST /playlists/generate
@@ -122,10 +123,10 @@ src/
 
 ## Data-Engine Integration
 
-Currently mocked with 20 hardcoded songs. When the Python data-engine gets a FastAPI wrapper, replace `DataEngineService.getRecommendations()` with an HTTP call to:
+The orchestrator calls the Python data-engine service via:
 
 ```
 POST http://data-engine:8000/recommend
-Body: { "event_description": "..." }
+Body: { "event_description": "...", "songs": [...] }
 Response: [{ "title": "...", "artist": "...", "is_new": true/false }]
 ```

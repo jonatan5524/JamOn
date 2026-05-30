@@ -12,5 +12,12 @@ class Settings:
         self.PLAYLIST_GENERATION_MODEL = "gemini-2.5-flash"
         self.EMBEDDING_MODEL = "gemini-embedding-2-preview"
         self.ORCHESTRATOR_URL = "http://localhost:3000"
+        # Provider selection — architectural choices, override via env var if needed
+        self.LLM_PROVIDER: str = os.environ.get("LLM_PROVIDER", "gemini")        # "gemini" | "college"
+        self.VECTOR_DB_PROVIDER: str = os.environ.get("VECTOR_DB_PROVIDER", "chroma")  # "chroma" | "pgvector"
+        # College/Ollama credentials — secrets, load from .env
+        self.COLLEGE_BASE_URL: str = os.environ.get("COLLEGE_BASE_URL", "http://llm.cs.colman.ac.il")
+        self.COLLEGE_USERNAME: str = os.environ.get("COLLEGE_USERNAME", "")
+        self.COLLEGE_PASSWORD: str = os.environ.get("COLLEGE_PASSWORD", "")
 
 settings = Settings()

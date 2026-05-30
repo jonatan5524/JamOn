@@ -1,0 +1,33 @@
+import logging
+from typing import List
+import httpx
+from app.core.config import settings
+from app.providers.exceptions import EmbeddingError
+
+logger = logging.getLogger(__name__)
+
+
+class CollegeEmbeddingProvider:
+    provider_id = "college"
+
+    def embed_document(self, text: str) -> List[float]:
+        return self._embed(text)
+
+    def embed_query(self, text: str) -> List[float]:
+        return self._embed(text)
+
+    def _embed(self, text: str) -> List[float]:
+        try:
+            with httpx.Client(
+                auth=(settings.COLLEGE_USERNAME, settings.COLLEGE_PASSWORD),
+                timeout=30.0,
+            ) as client:
+                response = client.post(
+                    f"{settings.COLLEGE_BASE_URL}/api/embeddings",
+                    json={"model": "all-minilm:latest", "prompt": text},
+                )
+                response.raise_for_status()
+                return response.json()["embedding"]
+        except Exception as e:
+            logger.error(f"College embed failed: {e}")
+            raise EmbeddingError(str(e)) from e

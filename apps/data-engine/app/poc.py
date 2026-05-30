@@ -10,8 +10,12 @@ logging.basicConfig(level=logging.DEBUG)
 # Assuming we run this from the project root (apps/data-engine/)
 sys.path.append(os.getcwd())
 
+# NOTE: This POC script was written before the provider abstraction refactor.
+# It has been updated minimally to import from the new provider classes.
+# For full functionality, wire up LLMProviderFactory / VectorStoreFactory as in main.py.
 from app.data.mock_data import MOCK_SONGS
-from app.services import llm
+from app.providers.llm.factory import LLMProviderFactory
+from app.providers.vectordb.factory import VectorStoreFactory
 from app.services.lyrics import fetch_lyrics_map
 from app.services.rag import RagEngine
 from app.workflows.playlist_generator import PlaylistGraphBuilder
@@ -56,15 +60,15 @@ def get_user_songs(user_name: str):
     print(f"Added {len(songs)} songs for {user_name}.")
     return songs
 
-async def process_and_index(rag: RagEngine, user_name: str, songs: list):
+async def process_and_index(rag: RagEngine, tagger, user_name: str, songs: list):
     """
     Generate features, fetch lyrics, and index songs for a user.
     """
     print(f"\nProcessing {len(songs)} songs for {user_name}...")
-    
+
     # 1. Get Audio Features from LLM
     print(f"1. Generating Audio Features for {user_name}'s songs...")
-    songs_with_features = await asyncio.to_thread(llm.generate_audio_features, songs)
+    songs_with_features = await asyncio.to_thread(tagger.tag_songs, songs)
     
     if not songs_with_features:
         print(f"Failed to generate audio features for {user_name}. Using original list.")
@@ -89,16 +93,18 @@ async def main():
 
     print("--- JamOn Multi-User Agentic RAG POC ---")
     
-    # Initialize RAG Engine
-    rag = RagEngine()
+    # Initialize RAG Engine via factories (keeps dims consistent with config)
+    llm_container, embed_config = LLMProviderFactory.create(settings.LLM_PROVIDER)
+    _store = VectorStoreFactory.create(settings.VECTOR_DB_PROVIDER, embed_config)
+    rag = RagEngine(vector_store=_store, embedder=llm_container.embedding, dj=llm_container.dj)
 
     # Get songs for User A and User B
     user_a_songs = get_user_songs("User A")
     user_b_songs = get_user_songs("User B")
 
     # Process and index both
-    await process_and_index(rag, "User A", user_a_songs)
-    await process_and_index(rag, "User B", user_b_songs)
+    await process_and_index(rag, llm_container.tagging, "User A", user_a_songs)
+    await process_and_index(rag, llm_container.tagging, "User B", user_b_songs)
 
     # 3. Define Mock Event
     mock_event = input("\nDescribe the event vibe (e.g., 'Late night chill study session'): ").strip()
@@ -113,7 +119,7 @@ async def main():
         
     async def llm_gen_wrapper(prompt: str, count: int, rejected: list, context: list):
         print(f"   [Graph] LLM Generating {count} new songs (Avoiding: {len(rejected)} rejected)")
-        return await asyncio.to_thread(llm.generate_playlist, prompt, context, count, rejected)
+        return await asyncio.to_thread(llm_container.dj.generate_playlist, prompt, context, count, rejected)
 
     # 5. Build and Run Graph
     print("\n5. Executing Agentic LangGraph Workflow...")

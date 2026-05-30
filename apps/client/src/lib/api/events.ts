@@ -21,9 +21,7 @@ const USE_MOCKS = import.meta.env.VITE_USE_MOCKS !== "false";
 
 // GET /api/events — endpoint does not exist on backend yet.
 export const listEvents = (): Promise<EventSummary[]> =>
-  USE_MOCKS
-    ? delay(MOCK_EVENT_SUMMARIES)
-    : apiFetch<EventSummary[]>("/events");
+  USE_MOCKS ? delay(MOCK_EVENT_SUMMARIES) : apiFetch<EventSummary[]>("/events");
 
 interface BackendUser {
   id: string;
@@ -45,11 +43,21 @@ interface BackendEvent {
   context: string | null;
   createdAt: string;
   participants?: BackendParticipant[];
+  playlistId?: string | null;
+  playlistUrl?: string | null;
+  tracksAdded?: number | null;
 }
 
 const PARTICIPANT_COLORS = [
-  "#f87171", "#fb923c", "#fbbf24", "#a3e635",
-  "#34d399", "#22d3ee", "#60a5fa", "#a78bfa", "#f472b6",
+  "#f87171",
+  "#fb923c",
+  "#fbbf24",
+  "#a3e635",
+  "#34d399",
+  "#22d3ee",
+  "#60a5fa",
+  "#a78bfa",
+  "#f472b6",
 ];
 
 const colorForUser = (userId: string): string => {
@@ -84,7 +92,15 @@ export const getEvent = async (eventId: string): Promise<EventDetail> => {
     participantCount: participants.length,
     inviteUrl: `${window.location.origin}/join/${raw.code}`,
     participants,
-    mix: null,
+    mix: raw.playlistId
+      ? {
+          id: raw.playlistId,
+          trackCount: raw.tracksAdded ?? 0,
+          durationMin: Math.round((raw.tracksAdded ?? 0) * 3.5),
+          spotifyUrl: raw.playlistUrl ?? "",
+          tracks: [],
+        }
+      : null,
     contributions: [],
   };
 };
@@ -108,7 +124,6 @@ export const findEventByCode = async (code: string): Promise<EventSummary> => {
 export const createEvent = async (
   payload: CreateEventRequest,
 ): Promise<EventSummary> => {
-
   console.log("Creating event with payload:", payload);
   const response = await api.post<EventSummary>("/events", {
     title: payload.title,
@@ -149,8 +164,7 @@ export const generateEventPlaylist = async (
       totalRequested: MOCK_EVENT_DETAIL.mix?.trackCount ?? 0,
     });
   }
-  return apiFetch<PlaylistResponse>(
-    `/events/${eventId}/generate-playlist`,
-    { method: "POST" },
-  );
+  return api
+    .post<PlaylistResponse>(`/events/${eventId}/generate-playlist`)
+    .then((r) => r.data);
 };

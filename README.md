@@ -8,21 +8,26 @@ Personalized music recommendation engine. Uses RAG + LLMs to generate event-spec
 
 ```bash
 cd apps/data-engine/app
-uv venv
+python3 -m venv .venv
+source .venv/bin/activate
 uv pip install -r requirements.txt
 ```
 
 Create `.env`:
 ```
 GEMINI_API_KEY=your_key_here
+GENIUS_ACCESS_TOKEN=your_genius_token_here
+LLM_PROVIDER=gemini
+VECTOR_DB_PROVIDER=chroma
 ```
 
 Run:
 ```bash
-uv run uvicorn server:app --port 8000
+# From apps/data-engine directory
+uvicorn app.main:app --port 8000
 ```
 
-Startup takes ~1 min (generates embeddings for mock songs via Gemini). Ready when you see `"Startup complete"`.
+Startup initializes the configured providers (Gemini/Chroma by default). Ready when you see `"Providers ready"`.
 
 ### 2. Orchestrator (NestJS)
 
@@ -74,11 +79,11 @@ redirect_uri=https://google.com
 
 ```
 apps/
-  data-engine/         Python — RAG engine, LLM tagging, vector search
+  data-engine/         Python — Modular RAG engine, LLM tagging, vector search
     app/
-      server.py        FastAPI server (POST /recommend)
-      llm_service.py   Gemini API calls
-      rag_engine.py    ChromaDB indexing & search
+      main.py          FastAPI server (Lifespan-based provider initialization)
+      providers/       Abstraction layer for LLM and VectorDB (Gemini, Chroma, etc.)
+      services/rag.py  Provider-agnostic RAG engine
       data/mock_data.py  20 mock songs for testing
 
   orchestrator/        NestJS — Spotify integration, playlist creation

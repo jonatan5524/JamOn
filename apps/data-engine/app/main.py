@@ -1,73 +1,84 @@
 import os
 import sys
-import json
-from dotenv import load_dotenv
+import logging
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
-# Load environment variables before importing other local modules
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+from app.core.config import settings
+from app.core.resilience import AIServiceUnavailableError
+from app.providers.containers import AppContainer
+from app.providers.exceptions import ConfigurationError, EmbeddingError, TaggingError, GenerationError
+from app.providers.llm.factory import LLMProviderFactory
+from app.providers.vectordb.factory import VectorStoreFactory
 
-# Add current directory to sys.path to import local modules
-sys.path.append(BASE_DIR)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
-from data.mock_data import MOCK_SONGS
-import llm_service
-from lyrics_service import fetch_lyrics_map
-from rag_engine import RagEngine
 
-def main():
-    if not os.environ.get("GEMINI_API_KEY"):
-        print("Error: GEMINI_API_KEY not found in environment variables.")
-        print("Please set it in a .env file or export it.")
-        return
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.LLM_PROVIDER == "gemini" and not settings.GEMINI_API_KEY:
+        logger.error("GEMINI_API_KEY not set. Exiting.")
+        sys.exit(1)
+    if not os.environ.get("GENIUS_ACCESS_TOKEN"):
+        logger.error("GENIUS_ACCESS_TOKEN not set. Exiting.")
+        sys.exit(1)
 
-    print("--- Starting JamOn RAG POC ---")
+    try:
+        llm_container, embed_config = LLMProviderFactory.create(settings.LLM_PROVIDER)
+        vector_store = VectorStoreFactory.create(settings.VECTOR_DB_PROVIDER, embed_config)
+        app.state.providers = AppContainer(llm=llm_container, vector_store=vector_store)
+        logger.info(
+            f"Providers ready — LLM: {settings.LLM_PROVIDER}, "
+            f"VectorDB: {settings.VECTOR_DB_PROVIDER}, "
+            f"Collection: {vector_store.collection_name}"
+        )
+    except ConfigurationError as e:
+        logger.error(f"Provider configuration error: {e}")
+        sys.exit(1)
 
-    # 1. Get Audio Features from LLM
-    print("\n1. Generating Audio Features for Mock Songs...")
-    # For POC, we can process all 20 songs.
-    songs_with_features = llm_service.generate_audio_features(MOCK_SONGS)
-    
-    if not songs_with_features:
-        print("Failed to generate audio features. Exiting.")
-        return
+    yield
 
-    print(f"Generated features for {len(songs_with_features)} songs.")
-    print("Sample feature:", json.dumps(songs_with_features[0], indent=2))
 
-    print("\nFetching lyrics...")
-    lyrics_map = fetch_lyrics_map(MOCK_SONGS)
-    lyrics_found = sum(1 for lyrics in lyrics_map.values() if lyrics)
-    if lyrics_found:
-        print(f"Fetched lyrics for {lyrics_found} songs from Genius.")
-    else:
-        print("No lyrics were fetched from Genius. Continuing without lyrics.")
+app = FastAPI(
+    title="JamOn - Data Processing Service",
+    description="""
+    This service handles all AI and vector-based computations for the JamOn project:
+    * **Vibe Analysis**: Analyzing natural language event descriptions.
+    * **RAG Engine**: Indexing and querying musical context from lyrics and audio features.
+    * **Playlist Generation**: Generating ranked recommendations using LLMs.
+    """,
+    version="2.0.0",
+    openapi_url="/api/v1/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan,
+)
 
-    # 2. Index Songs in Vector DB
-    print("\n2. Indexing Songs into Vector DB...")
-    rag = RagEngine()
-    rag.add_songs(songs_with_features, lyrics_map)
 
-    # 3. Define Mock Event
-    mock_event = "A sad mood for a funeral."
-    print(f"\n3. Mock Event: '{mock_event}'")
+@app.exception_handler(AIServiceUnavailableError)
+async def ai_service_unavailable_handler(request, exc):
+    return JSONResponse(status_code=503, content={"detail": "AI Service unavailable (Circuit Breaker OPEN)"})
 
-    # 4. Query Vector DB
-    print("\n4. Retrieving relevant songs from library...")
-    # Retrieve top 10 context songs
-    context_songs = rag.query_songs(mock_event, n_results=10)
-    
-    print(f"Retrieved {len(context_songs)} context songs.")
-    for song in context_songs:
-        desc = song.get('mood_desc') or song.get('embedding_text') or ""
-        print(f" - {song['title']} by {song['artist']} ({desc[:50]}...)")
 
-    # 5. Generate Playlist
-    print("\n5. Generating Final Playlist...")
-    playlist = llm_service.generate_playlist(mock_event, context_songs)
+@app.exception_handler(EmbeddingError)
+async def embedding_error_handler(request, exc):
+    return JSONResponse(status_code=503, content={"detail": f"Embedding service error: {exc}"})
 
-    print("\n--- Final Playlist ---")
-    print(json.dumps(playlist, indent=2))
 
-if __name__ == "__main__":
-    main()
+@app.exception_handler(TaggingError)
+async def tagging_error_handler(request, exc):
+    return JSONResponse(status_code=503, content={"detail": f"Tagging service error: {exc}"})
+
+
+@app.exception_handler(GenerationError)
+async def generation_error_handler(request, exc):
+    return JSONResponse(status_code=503, content={"detail": f"Generation service error: {exc}"})
+
+
+from app.api.endpoints import router
+app.include_router(router)

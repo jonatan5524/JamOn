@@ -1,17 +1,19 @@
-I need a playlist for a specific event. I have performed a semantic search on the user's library and retrieved the top 30 songs that match this vibe.
+I need a playlist for a specific event. I have performed a semantic search on the user's library and retrieved relevant songs.
 
 **The Event:**
 "{event_description}"
 
 **User's Matching Library (Context):**
 {context_str}
-(Note: 'context_str' is the list of top 30 matches found by your Vector DB)
+
+**Rejected Songs to Avoid:**
+{rejected_str}
 
 **Instructions:**
-1. Create a curated playlist of **20 songs**.
-2. **Prioritize the User's Library:** At least 60-70% of the playlist should come from the provided Context.
-3. **Add New Discoveries:** You may add NEW songs (not in the Context) if they perfectly fit the vibe and bridge gaps between user songs.
-4. **Flow:** Order the songs to create a musical journey (e.g., start chill, build energy).
+1. Generate exactly **{count}** NEW songs that perfectly fit the vibe.
+2. DO NOT include any songs from the "User's Matching Library (Context)".
+3. DO NOT include any songs from the "Rejected Songs to Avoid".
+4. Ensure the songs are real and exist on Spotify.
 
 RETURN ONLY A RAW JSON LIST.
 
@@ -20,6 +22,6 @@ RETURN ONLY A RAW JSON LIST.
   {
     "title": "Song Name",
     "artist": "Artist Name",
-    "source": "user_library" OR "new_suggestion"
+    "source": "new_suggestion"
   }
 ]

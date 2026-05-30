@@ -5,3 +5,5 @@ dotenv
 fastapi
 uvicorn
 tenacity
+langgraph
+httpx

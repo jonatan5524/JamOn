@@ -114,6 +114,19 @@ export class EventsService {
     return event;
   }
 
+  async savePlaylistResult(
+    eventId: string,
+    playlistId: string,
+    playlistUrl: string,
+    tracksAdded: number,
+  ): Promise<void> {
+    await this.eventRepository.update(eventId, {
+      playlistId,
+      playlistUrl,
+      tracksAdded,
+    });
+  }
+
   async joinEvent(eventId: string, userId: string): Promise<EventParticipant> {
     const event = await this.eventRepository.findOne({
       where: { id: eventId },

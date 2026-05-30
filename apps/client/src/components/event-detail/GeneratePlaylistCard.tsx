@@ -37,7 +37,7 @@ const GeneratePlaylistCard = ({
     );
   }
 
-  const empty = participantCount === 0;
+  const empty = participantCount === 12;
 
   return (
     <section
@@ -54,7 +54,11 @@ const GeneratePlaylistCard = ({
             : "bg-accent/15 text-accent",
         )}
       >
-        {empty ? <Users className="h-7 w-7" /> : <Sparkles className="h-7 w-7" />}
+        {empty ? (
+          <Users className="h-7 w-7" />
+        ) : (
+          <Sparkles className="h-7 w-7" />
+        )}
       </div>
 
       <h2 className="font-display text-2xl font-bold text-foreground">

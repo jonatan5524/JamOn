@@ -24,7 +24,7 @@ class CollegeEmbeddingProvider:
             ) as client:
                 response = client.post(
                     f"{settings.COLLEGE_BASE_URL}/api/embeddings",
-                    json={"model": "all-minilm:latest", "prompt": text},
+                    json={"model": "all-minilm", "prompt": text},
                 )
                 response.raise_for_status()
                 return response.json()["embedding"]

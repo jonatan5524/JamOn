@@ -27,7 +27,7 @@ class CollegeTaggingProvider:
         prompt = _load_prompt("audio_features_prompt.txt").replace(
             "{songs_list}", json.dumps(songs, indent=2)
         )
-        logger.debug(f"College tagging prompt: {prompt}")
+        
         try:
             with httpx.Client(
                 auth=(settings.COLLEGE_USERNAME, settings.COLLEGE_PASSWORD),
@@ -38,8 +38,9 @@ class CollegeTaggingProvider:
                     json={"model": "llama3.1:8b", "prompt": prompt, "format": "json", "stream": False},
                 )
                 response.raise_for_status()
-                logger.debug(f"College response: {response.text}")
-                return json.loads(response.json()["response"])
+                
+                parsed = json.loads(response.json()["response"])
+                return parsed if isinstance(parsed, list) else [parsed]
         except Exception as e:
             logger.error(f"College tag_batch failed: {e}")
             raise TaggingError(str(e)) from e

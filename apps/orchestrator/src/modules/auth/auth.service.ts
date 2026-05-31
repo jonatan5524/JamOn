@@ -81,6 +81,7 @@ export class AuthService {
         const dtos = await this.dataEngineService.ingestBatch(simplifiedTracks);
         await this.songService.updateEmbeddings(dtos);
       })
+      .then(() => this.userService.updateLastUpdatedSongs(userId))
       .then(() => this.logger.log('Library sync complete'))
       .catch((error) =>
         this.logger.error(`Library sync failed: ${error.message}`),

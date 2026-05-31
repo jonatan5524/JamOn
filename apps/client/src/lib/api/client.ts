@@ -28,7 +28,8 @@ export const apiFetch = async <T>(
     ...(headers as Record<string, string> | undefined),
   };
   if (body !== undefined) finalHeaders["Content-Type"] = "application/json";
-  if (token) finalHeaders.Authorization = `Bearer ${token}`;
+  const authToken = token ?? localStorage.getItem("jamon_access_token");
+  if (authToken) finalHeaders.Authorization = `Bearer ${authToken}`;
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,

@@ -45,6 +45,7 @@ interface BackendEvent {
   context: string | null;
   createdAt: string;
   participants?: BackendParticipant[];
+  viewerRole?: "creator" | "participant";
 }
 
 const PARTICIPANT_COLORS = [
@@ -86,6 +87,7 @@ export const getEvent = async (eventId: string): Promise<EventDetail> => {
     participants,
     mix: null,
     contributions: [],
+    viewerRole: raw.viewerRole ?? "participant",
   };
 };
 

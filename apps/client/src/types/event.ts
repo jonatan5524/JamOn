@@ -52,9 +52,13 @@ export interface TasteContribution {
   colorHex: string;
 }
 
+export type EventRole = "creator" | "participant";
+
 export interface EventDetail extends EventSummary {
   inviteUrl: string;
   participants: Participant[];
   mix: JamOnMix | null;
   contributions: TasteContribution[];
+  /** Current viewer's role on this event, from the backend. */
+  viewerRole: EventRole;
 }

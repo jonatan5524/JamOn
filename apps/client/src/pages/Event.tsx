@@ -2,6 +2,8 @@ import { useParams } from "react-router-dom";
 import EventCodeBadge, {
   EventCodeBadgeSkeleton,
 } from "@/components/event-detail/EventCodeBadge";
+import EventAccessDenied from "@/components/event-detail/EventAccessDenied";
+import EventNotFound from "@/components/event-detail/EventNotFound";
 import GeneratePlaylistCard from "@/components/event-detail/GeneratePlaylistCard";
 import InviteGuestsCard from "@/components/event-detail/InviteGuestsCard";
 import JamOnMixCard from "@/components/event-detail/JamOnMixCard";
@@ -10,12 +12,15 @@ import TasteContributionsCard from "@/components/event-detail/TasteContributions
 import ParticleBackground from "@/components/layout/ParticleBackground";
 import TopNav from "@/components/layout/TopNav";
 import { useEvent, useGenerateEventPlaylist } from "@/hooks/use-event";
+import { ApiError } from "@/lib/api/index";
 
 const Event = () => {
   const { eventId } = useParams<{ eventId: string }>();
-  const { data: event, isLoading, isError } = useEvent(eventId);
+  const { data: event, isLoading, isError, error } = useEvent(eventId);
   const generate = useGenerateEventPlaylist(eventId);
 
+  const isNotFound = error instanceof ApiError && error.status === 404;
+  const isForbidden = error instanceof ApiError && error.status === 403;
   const hasMix = Boolean(event?.mix);
 
   return (
@@ -26,7 +31,7 @@ const Event = () => {
         <TopNav
           showActions={false}
           rightSlot={
-            isLoading || !event ? (
+            isNotFound || isForbidden ? null : isLoading || !event ? (
               <EventCodeBadgeSkeleton />
             ) : (
               <EventCodeBadge code={event.code} />
@@ -35,7 +40,11 @@ const Event = () => {
         />
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
-          {isError ? (
+          {isNotFound ? (
+            <EventNotFound />
+          ) : isForbidden ? (
+            <EventAccessDenied />
+          ) : isError ? (
             <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-6 text-sm text-destructive">
               Failed to load event.
             </div>
@@ -68,6 +77,7 @@ const Event = () => {
                 ) : (
                   <GeneratePlaylistCard
                     participantCount={event?.participants.length ?? 0}
+                    isCreator={event?.viewerRole === "creator"}
                     isLoading={isLoading}
                     isGenerating={generate.isPending}
                     onGenerate={() => generate.mutate()}

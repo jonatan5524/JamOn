@@ -3,6 +3,8 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiBody } 
 import { CreateEventDto } from './dto/create-event.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { EventsService } from './event.service';
+import { EventRole } from './event-role.decorator';
+import { EventRoleGuard } from './event-role.guard';
 
 @ApiTags('Events')
 @Controller('api/events')
@@ -57,16 +59,31 @@ export class EventsController {
   }
 
   @Get(':id')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Event detail with participants' })
   @ApiParam({ name: 'id', description: 'Event ID' })
   @ApiResponse({ status: 200, description: 'Event detail.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden. User is not a member of this event.' })
   @ApiResponse({ status: 404, description: 'Event not found.' })
-  async getEventDetails(@Param('id') id: string) {
-    return this.eventsService.findById(id);
+  async getEventDetails(@Param('id') id: string, @Req() req: any) {
+    const userId = req.user.userId;
+    if (!userId) {
+      throw new UnauthorizedException('User ID not found in token');
+    }
+    return this.eventsService.findById(id, userId);
   }
 
   @Post(':id/generate-playlist')
+  @UseGuards(AuthGuard('jwt'), EventRoleGuard)
+  @EventRole('creator')
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Generates/Regenerates a Spotify playlist using Data Processing' })
+  @ApiParam({ name: 'id', description: 'The Event ID' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 403, description: 'Forbidden. Only the event host can generate the playlist.' })
+  @ApiResponse({ status: 404, description: 'Event not found.' })
   async generatePlaylist(@Param('id') id: string) {
     return;
   }

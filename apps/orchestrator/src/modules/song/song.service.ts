@@ -1,8 +1,10 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { Brackets, QueryFailedError, Repository } from 'typeorm';
 import { Song } from './song.entity';
+import { SongLike } from './song-like.entity';
 import { CreateSongDto } from './dto/create-song.dto';
+import { SimplifiedTrack } from '../spotify/spotify.types';
 
 const PG_UNIQUE_VIOLATION = '23505';
 
@@ -11,7 +13,81 @@ export class SongService {
     constructor(
         @InjectRepository(Song)
         private readonly songRepository: Repository<Song>,
+        @InjectRepository(SongLike)
+        private readonly songLikeRepository: Repository<SongLike>,
     ) {}
+
+    /**
+     * Inserts songs that don't exist yet (name + artistName only, no embedding),
+     * then returns the full Song rows for every track in the input list.
+     */
+    async upsertSongsFromTracks(tracks: SimplifiedTrack[]): Promise<Song[]> {
+        if (tracks.length === 0) return [];
+
+        const newSongs = tracks.map((t) =>
+            this.songRepository.create({ name: t.title, artistName: t.artist }),
+        );
+
+        await this.songRepository
+            .createQueryBuilder()
+            .insert()
+            .into(Song)
+            .values(newSongs)
+            .orIgnore()
+            .execute();
+
+        return this.songRepository
+            .createQueryBuilder('song')
+            .where(new Brackets((qb) => {
+                tracks.forEach((t, i) => {
+                    qb.orWhere(
+                        `(song.name = :name${i} AND song.artistName = :artist${i})`,
+                        { [`name${i}`]: t.title, [`artist${i}`]: t.artist },
+                    );
+                });
+            }))
+            .getMany();
+    }
+
+    /**
+     * Records that a user likes a set of songs. Silently skips already-existing pairs.
+     */
+    async bulkUpsertLikes(userId: string, songIds: string[]): Promise<void> {
+        if (songIds.length === 0) return;
+
+        await this.songLikeRepository
+            .createQueryBuilder()
+            .delete()
+            .from(SongLike)
+            .where('userId = :userId AND songId NOT IN (:...songIds)', { userId, songIds })
+            .execute();
+
+        await this.songLikeRepository
+            .createQueryBuilder()
+            .insert()
+            .into(SongLike)
+            .values(songIds.map((songId) => ({ userId, songId })))
+            .orIgnore()
+            .execute();
+    }
+
+    /**
+     * Updates the embedding on existing Song rows returned by the data-engine.
+     */
+    async updateEmbeddings(dtos: CreateSongDto[]): Promise<void> {
+        if (dtos.length === 0) return;
+
+        await Promise.all(
+            dtos
+                .filter((dto) => dto.embedding !== undefined)
+                .map((dto) =>
+                    this.songRepository.update(
+                        { name: dto.name, artistName: dto.artistName },
+                        { embedding: JSON.stringify(dto.embedding) },
+                    ),
+                ),
+        );
+    }
 
     async create(dto: CreateSongDto): Promise<Song> {
         const existing = await this.songRepository.findOne({
@@ -27,7 +103,7 @@ export class SongService {
         const song = this.songRepository.create({
             name: dto.name,
             artistName: dto.artistName,
-            embedding: JSON.stringify(dto.embedding),
+            ...(dto.embedding && { embedding: JSON.stringify(dto.embedding) }),
         });
 
         try {

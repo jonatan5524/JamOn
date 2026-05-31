@@ -1,5 +1,5 @@
-import { IsString, IsNotEmpty, IsArray, ArrayNotEmpty, IsNumber } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, IsArray, IsNumber, IsOptional } from 'class-validator';
+import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
 
 export class CreateSongDto {
     @ApiProperty({ example: 'Bohemian Rhapsody', description: 'Song name' })
@@ -12,13 +12,13 @@ export class CreateSongDto {
     @IsNotEmpty()
     artistName!: string;
 
-    @ApiProperty({
+    @ApiPropertyOptional({
         example: [0.1, 0.2, 0.3],
-        description: 'Embedding vector produced by the data-engine',
+        description: 'Embedding vector produced by the data-engine (set separately after indexing)',
         type: [Number],
     })
+    @IsOptional()
     @IsArray()
-    @ArrayNotEmpty()
     @IsNumber({}, { each: true })
-    embedding!: number[];
+    embedding?: number[];
 }

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
 import { Music, Users, Sparkles, ArrowRight } from "lucide-react";
 import ParticleBackground from "@/components/layout/ParticleBackground";
 import TopNav from "@/components/layout/TopNav";
@@ -8,7 +7,6 @@ import JoinEventDialog from "@/components/events/JoinEventDialog";
 import CreateEventDialog from "@/components/events/CreateEventDialog";
 
 const Home = () => {
-  const navigate = useNavigate();
   const [joinOpen, setJoinOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 

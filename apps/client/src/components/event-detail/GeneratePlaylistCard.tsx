@@ -37,7 +37,7 @@ const GeneratePlaylistCard = ({
     );
   }
 
-  const empty = participantCount === 12;
+  const empty = participantCount === 0;
 
   return (
     <section

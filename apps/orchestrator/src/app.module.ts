@@ -5,11 +5,14 @@ import { PlaylistModule } from "./modules/playlist/playlist.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { EventModule } from "./modules/event/event.module";
 import { UserModule } from "./modules/user/user.module";
+import { SongModule } from "./modules/song/song.module";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { User } from "./modules/user/user.entity";
 import { DataSource } from "typeorm";
 import { Event } from "./modules/event/event.entity";
 import { EventParticipant } from "./modules/event/event-participant.entity";
+import { Song } from "./modules/song/song.entity";
+import { SongLike } from "./modules/song/song-like.entity";
 
 @Module({
   imports: [
@@ -27,7 +30,7 @@ import { EventParticipant } from "./modules/event/event-participant.entity";
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
-        entities: [User, Event, EventParticipant],
+        entities: [User, Event, EventParticipant, Song, SongLike],
         synchronize: true,
         autoLoadEntities: true
       }),
@@ -36,7 +39,8 @@ import { EventParticipant } from "./modules/event/event-participant.entity";
     PlaylistModule,
     AuthModule,
     EventModule,
-    UserModule
+    UserModule,
+    SongModule
   ],
 })
 export class AppModule implements OnModuleInit { 

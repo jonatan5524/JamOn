@@ -81,6 +81,20 @@ export class EventsController {
     return this.eventsService.findByCode(code);
   }
 
+  @Get("/my")
+  @UseGuards(AuthGuard("jwt"))
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Lists all events the authenticated user is participating in",
+  })
+  @ApiResponse({ status: 200, description: "List of user events." })
+  @ApiResponse({ status: 401, description: "Unauthorized." })
+  @ApiResponse({ status: 500, description: "Internal Server Error." })
+  async getMyEvents(@Req() req: any) {
+    const userId = req.user.userId;
+    return await this.eventsService.findByUserId(userId);
+  }
+
   @Post(":id/join")
   @HttpCode(HttpStatus.OK)
   @UseGuards(AuthGuard("jwt"))

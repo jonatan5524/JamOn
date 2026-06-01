@@ -1,5 +1,5 @@
 export {
-  listEvents,
+  myEventsList,
   getEvent,
   findEventByCode,
   createEvent,

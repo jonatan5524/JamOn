@@ -157,4 +157,16 @@ export class EventsService {
       throw err;
     }
   }
+
+  async findByUserId(userId: string): Promise<Event[]> {
+    return await this.eventRepository.find({
+      where: [
+        { participants: { userId: userId } },
+        { creator: { id: userId } },
+      ],
+      order: {
+        createdAt: "DESC",
+      },
+    });
+  }
 }

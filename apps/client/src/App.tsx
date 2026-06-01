@@ -8,6 +8,7 @@ import Event from "./pages/Event";
 import JoinByCode from "./pages/JoinByCode";
 import UserMenu from "@/components/layout/UserMenu";
 import { useSpotifyAuth } from "./hooks/use-spotify-auth";
+import MyEvents from "./pages/MyEvents";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,13 @@ const App = () => (
             }
           />
           <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route
+            path='/my-events'
+            element={
+              <ProtectedRoute>
+                <MyEvents />
+              </ProtectedRoute>
+            } />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>

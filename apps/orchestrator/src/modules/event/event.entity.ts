@@ -20,6 +20,9 @@ export class Event {
     @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
     createdAt!: Date;
 
+    @Column({type: 'uuid', name: 'created_by' })
+    createdBy!: string;
+
     @ManyToOne(() => User)
     @JoinColumn({ name: 'created_by' })
     creator!: User;

@@ -108,4 +108,15 @@ class ChromaVectorStore:
             if distance <= max_distance:
                 filtered.append(meta)
 
+        logger.info(
+            f"Vector search: {len(retrieved)} candidates, "
+            f"{len(filtered)} passed max_distance={max_distance}"
+        )
+        for meta, distance in zip(metadatas, distances):
+            status = "PASS" if distance <= max_distance else "FAIL"
+            logger.info(
+                f"  [{status}] {meta.get('title')} — {meta.get('artist')} "
+                f"| cosine_dist={distance:.4f}"
+            )
+
         return filtered if filtered else retrieved

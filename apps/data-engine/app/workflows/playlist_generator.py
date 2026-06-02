@@ -52,6 +52,10 @@ class PlaylistGraphBuilder:
             for song, is_valid in zip(candidates, validation_results):
                 if is_valid:
                     validated.append(song)
+                    logger.info(
+                        f"  [wildcard ACCEPTED] {song.get('title', 'Unknown')} "
+                        f"— {song.get('artist', 'Unknown')}"
+                    )
                 else:
                     song_name = f"{song.get('title', 'Unknown')} by {song.get('artist', 'Unknown')}"
                     rejected.append(song_name)
@@ -103,7 +107,22 @@ class PlaylistGraphBuilder:
                 deduped.append(song)
                 
         random.shuffle(deduped)
-        logger.info(f"Final playlist generated with {len(deduped)} songs")
+
+        library_count = sum(1 for s in deduped if s.get("source") != "new_suggestion")
+        ai_count = len(deduped) - library_count
+        logger.info(
+            f"Final playlist: {len(deduped)} songs — "
+            f"{library_count} from library, {ai_count} AI-generated"
+        )
+        for song in deduped:
+            source = "AI" if song.get("source") == "new_suggestion" else "LIBRARY"
+            dist = song.get("distance")
+            dist_str = f" | cosine_dist={dist:.4f}" if dist is not None else ""
+            logger.info(
+                f"  [{source}] {song.get('title', 'Unknown')} "
+                f"— {song.get('artist', 'Unknown')}{dist_str}"
+            )
+
         return {"final_playlist": deduped}
 
     def build(self):

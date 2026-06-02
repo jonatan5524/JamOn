@@ -25,7 +25,7 @@ export class PlaylistService {
     );
 
     this.logger.log("[generatePlaylist] Fetching top tracks from Spotify...");
-    const topTracks = await this.spotifyService.getTopTracks(accessToken, 15);
+    const topTracks = await this.spotifyService.getTopTracks(accessToken, 30);
     this.logger.log(`[generatePlaylist] Got ${topTracks.length} top tracks`);
 
     this.logger.log("[generatePlaylist] Calling data-engine /recommend...");

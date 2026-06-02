@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 
 interface GeneratePlaylistCardProps {
   participantCount: number;
+  /** Only the event host (creator) may trigger generation. */
+  isCreator?: boolean;
   isLoading?: boolean;
   isGenerating?: boolean;
   onGenerate?: () => void;
@@ -13,6 +15,7 @@ interface GeneratePlaylistCardProps {
 
 const GeneratePlaylistCard = ({
   participantCount,
+  isCreator = false,
   isLoading,
   isGenerating,
   onGenerate,
@@ -67,15 +70,21 @@ const GeneratePlaylistCard = ({
           : `${participantCount} participant${participantCount === 1 ? "" : "s"} connected. Our AI will analyze everyone's taste and create the perfect mix.`}
       </p>
 
-      <Button
-        size="lg"
-        onClick={onGenerate}
-        disabled={isGenerating || empty}
-        className="mt-6 gap-2 bg-accent text-accent-foreground hover:bg-accent/90 shadow-lg hover:shadow-accent/30"
-      >
-        <Play className="h-4 w-4" />
-        {isGenerating ? "Generating..." : "Generate Playlist"}
-      </Button>
+      {isCreator ? (
+        <Button
+          size="lg"
+          onClick={onGenerate}
+          disabled={isGenerating || empty}
+          className="mt-6 gap-2 bg-accent text-accent-foreground hover:bg-accent/90 shadow-lg hover:shadow-accent/30"
+        >
+          <Play className="h-4 w-4" />
+          {isGenerating ? "Generating..." : "Generate Playlist"}
+        </Button>
+      ) : (
+        <p className="mt-6 text-sm text-muted-foreground">
+          Waiting for the host to generate the playlist…
+        </p>
+      )}
     </section>
   );
 };

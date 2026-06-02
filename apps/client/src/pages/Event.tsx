@@ -11,8 +11,20 @@ import ParticipantsCard from "@/components/event-detail/ParticipantsCard";
 import TasteContributionsCard from "@/components/event-detail/TasteContributionsCard";
 import ParticleBackground from "@/components/layout/ParticleBackground";
 import TopNav from "@/components/layout/TopNav";
+import { toast } from "sonner";
 import { useEvent, useGenerateEventPlaylist } from "@/hooks/use-event";
 import { ApiError } from "@/lib/api/index";
+
+/** Pull a human message out of an axios/ApiError, else a generic fallback. */
+const getGenerateErrorMessage = (err: unknown): string => {
+  const data = (
+    err as { response?: { data?: { message?: string; error?: string } } }
+  )?.response?.data;
+  if (data?.message) return data.message;
+  if (data?.error) return data.error;
+  if (err instanceof ApiError) return err.message;
+  return "Failed to generate playlist";
+};
 
 const Event = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -80,7 +92,13 @@ const Event = () => {
                     isCreator={event?.viewerRole === "creator"}
                     isLoading={isLoading}
                     isGenerating={generate.isPending}
-                    onGenerate={() => generate.mutate()}
+                    onGenerate={() =>
+                      generate.mutate(undefined, {
+                        onSuccess: () => toast.success("Playlist generated"),
+                        onError: (err) =>
+                          toast.error(getGenerateErrorMessage(err)),
+                      })
+                    }
                   />
                 )}
               </div>

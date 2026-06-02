@@ -4,7 +4,7 @@ import {
   generateEventPlaylist,
   getEvent,
   joinEvent,
-  listEvents,
+  myEventsList,
 } from "@/lib/api/index";
 import type { CreateEventRequest, PlaylistResponse } from "@/types/api";
 import type {
@@ -24,7 +24,7 @@ export const eventKeys = {
 export const useEventList = () =>
   useQuery<EventSummary[]>({
     queryKey: eventKeys.list(),
-    queryFn: listEvents,
+    queryFn: myEventsList,
     staleTime: 30_000,
   });
 

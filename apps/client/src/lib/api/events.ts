@@ -11,17 +11,12 @@ import { delay } from "@/lib/api/_mock";
 import {
   MOCK_EVENT_DETAIL,
   MOCK_EVENT_DETAILS,
-  MOCK_EVENT_SUMMARIES,
 } from "@/lib/mock-event";
 import type { CreateEventRequest, PlaylistResponse } from "@/types/api";
 import type { EventDetail, EventSummary, Participant } from "@/types/event";
 import api from "./api";
 
 const USE_MOCKS = import.meta.env.VITE_USE_MOCKS !== "false";
-
-// GET /api/events — endpoint does not exist on backend yet.
-export const listEvents = (): Promise<EventSummary[]> =>
-  USE_MOCKS ? delay(MOCK_EVENT_SUMMARIES) : apiFetch<EventSummary[]>("/events");
 
 interface BackendUser {
   id: string;
@@ -80,6 +75,10 @@ const mapParticipant = (p: BackendParticipant): Participant => {
   };
 };
 
+// GET /api/events — endpoint does not exist on backend yet.
+export const listEvents = (): Promise<EventSummary[]> =>
+  USE_MOCKS ? delay(MOCK_EVENT_SUMMARIES) : apiFetch<EventSummary[]>("/events");
+
 // GET /api/events/:id
 export const getEvent = async (eventId: string): Promise<EventDetail> => {
   const raw = await apiFetch<BackendEvent>(`/events/${eventId}`);
@@ -125,6 +124,7 @@ export const createEvent = async (
   payload: CreateEventRequest,
 ): Promise<EventSummary> => {
   console.log("Creating event with payload:", payload);
+
   const response = await api.post<EventSummary>("/events", {
     title: payload.title,
     context: payload.context,
@@ -137,6 +137,18 @@ export const createEvent = async (
 export const joinEvent = async (eventId: string): Promise<void> => {
   await api.post(`/events/${eventId}/join`);
 };
+
+// GET /api/events/my — JWT-guarded, user from token
+export const myEventsList = async (): Promise<EventSummary[]> => {
+   const response = (await api.get<BackendEvent[]>("/events/my")).data;
+   return response.map((raw) => ({
+     id: String(raw.id),
+     code: raw.code,
+     name: raw.title,
+     description: raw.context ?? "",
+     participantCount: raw.participants?.length ?? 0,
+   }));
+}
 
 // POST /api/events/:id/generate-playlist
 // Backend stub. Legacy POST /playlists/generate returns PlaylistResponse.

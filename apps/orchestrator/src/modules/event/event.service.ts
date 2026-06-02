@@ -87,6 +87,18 @@ export class EventsService {
       tracksAdded,
     });
   }
+  
+  async findByUserId(userId: string): Promise<Event[]> {
+      return await this.eventRepository.find({
+          where: [
+              { participants: { userId: userId } },
+              { creator: { id: userId } },
+          ],
+          order: {
+              createdAt: 'DESC'
+          }
+      });
+  }
 
   async joinEvent(eventId: string, userId: string): Promise<EventParticipant> {
     const event = await this.eventRepository.findOne({

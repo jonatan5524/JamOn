@@ -62,30 +62,29 @@ export class AuthService {
     };
   }
 
-  private triggerLibrarySync(spotifyAccessToken: string, userId: string): void {
-    this.spotifyService.getTopTracks(spotifyAccessToken)
-      .then(async (tracks) => {
-        const songs = await this.songService.upsertSongsFromTracks(tracks);
+  private async triggerLibrarySync(spotifyAccessToken: string, userId: string): Promise<void> {
+    try {
+      const tracks = await this.spotifyService.getTopTracks(spotifyAccessToken);
+      const songs = await this.songService.upsertSongsFromTracks(tracks);
 
-        await this.songService.bulkUpsertLikes(userId, songs.map((s) => s.id));
-        this.logger.log(`Library sync: saved ${songs.length} song(s) and updated likes for user ${userId}`);
+      await this.songService.bulkUpsertLikes(userId, songs.map((s) => s.id));
+      this.logger.log(`Library sync: saved ${songs.length} song(s) and updated likes for user ${userId}`);
 
-        const unindexed = songs.filter((s) => !s.embedding);
-        if (unindexed.length === 0) {
-          this.logger.log('Library sync: all tracks already have embeddings');
-          return;
-        }
-
+      const unindexed = songs.filter((s) => !s.embedding);
+      if (unindexed.length === 0) {
+        this.logger.log('Library sync: all tracks already have embeddings');
+      } else {
         this.logger.log(`Library sync: sending ${unindexed.length} track(s) to data-engine for embedding`);
         const simplifiedTracks = unindexed.map((s) => ({ title: s.name, artist: s.artistName }));
         const dtos = await this.dataEngineService.ingestBatch(simplifiedTracks);
         await this.songService.updateEmbeddings(dtos);
-      })
-      .then(() => this.userService.updateLastUpdatedSongs(userId))
-      .then(() => this.logger.log('Library sync complete'))
-      .catch((error) =>
-        this.logger.error(`Library sync failed: ${error.message}`),
-      );
+      }
+
+      await this.userService.updateLastUpdatedSongs(userId);
+      this.logger.log('Library sync complete');
+    } catch (error: any) {
+      this.logger.error(`Library sync failed: ${error.message}`);
+    }
   }
 
   private async getSpotifyProfile(accessToken: string) {

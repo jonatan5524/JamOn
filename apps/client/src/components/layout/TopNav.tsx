@@ -55,6 +55,14 @@ const TopNav = ({
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => navigate("/my-events")}
+                className="gap-2 border-white/15"
+              >
+                My Events
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={onJoinEvent}
                 className="gap-2 border-white/15"
               >

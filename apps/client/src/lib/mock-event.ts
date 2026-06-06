@@ -69,6 +69,7 @@ const fullDetail: EventDetail = {
     { participantId: "p3", participantName: "Sam", percent: 22, colorHex: "#ef4444" },
     { participantId: "p4", participantName: "Taylor", percent: 26, colorHex: "#0ea5e9" },
   ],
+  viewerRole: "creator",
 };
 
 const emptyDetail: EventDetail = {
@@ -81,6 +82,7 @@ const emptyDetail: EventDetail = {
   participants: [],
   mix: null,
   contributions: [],
+  viewerRole: "creator",
 };
 
 export const MOCK_EVENT_DETAIL = fullDetail;

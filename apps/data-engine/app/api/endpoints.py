@@ -41,6 +41,14 @@ def _build_embedding_text(song: dict, lyrics: str) -> str:
     response_description="A list of recommended songs with metadata",
 )
 async def recommend(http_request: Request, request: RecommendRequest):
+    logger.info("===== /recommend START =====")
+    logger.info(f"Event description: '{request.event_description}'")
+    logger.info(f"Songs received: {len(request.songs)}")
+    for i, s in enumerate(request.songs[:5]):
+        logger.info(f"  Song[{i}]: {s.title} — {s.artist}")
+    if len(request.songs) > 5:
+        logger.info(f"  ... and {len(request.songs) - 5} more")
+
     if not request.songs:
         raise HTTPException(status_code=400, detail="No songs provided for context")
 
@@ -52,10 +60,13 @@ async def recommend(http_request: Request, request: RecommendRequest):
         providers.llm.tagging.tag_songs, input_songs
     )
     if not songs_with_features:
+        logger.error("Tagging returned empty result")
         raise HTTPException(status_code=500, detail="Failed to tag songs")
+    logger.info(f"Tagging complete — {len(songs_with_features)} songs tagged")
 
     logger.info(f"Fetching lyrics for {len(input_songs)} songs...")
     lyrics_map = await asyncio.to_thread(lyrics.fetch_lyrics_map, input_songs)
+    logger.info(f"Lyrics fetched — {len(lyrics_map)} found")
 
     logger.info("Indexing songs in RAG engine...")
     rag = RagEngine(
@@ -64,6 +75,7 @@ async def recommend(http_request: Request, request: RecommendRequest):
         dj=providers.llm.dj,
     )
     await asyncio.to_thread(rag.add_songs, songs_with_features, lyrics_map)
+    logger.info("RAG indexing complete")
 
     async def db_fetch_wrapper(query: str):
         return await rag.query_songs(query, n_results=20)
@@ -81,6 +93,7 @@ async def recommend(http_request: Request, request: RecommendRequest):
         max_attempts=3,
     )
     workflow = builder.build()
+    logger.info("LangGraph workflow built — invoking...")
 
     try:
         final_state = await workflow.ainvoke({"event_description": request.event_description})
@@ -90,7 +103,12 @@ async def recommend(http_request: Request, request: RecommendRequest):
         raise HTTPException(status_code=500, detail="Failed to generate playlist via LangGraph")
 
     if not playlist:
+        logger.error("Generated playlist was empty")
         raise HTTPException(status_code=500, detail="Generated playlist was empty")
+
+    logger.info(f"===== /recommend DONE — returning {len(playlist)} songs =====")
+    for i, song in enumerate(playlist[:5]):
+        logger.info(f"  Result[{i}]: {song.get('title', '?')} — {song.get('artist', '?')} (source={song.get('source', '?')})")
 
     return [
         RecommendedSong(

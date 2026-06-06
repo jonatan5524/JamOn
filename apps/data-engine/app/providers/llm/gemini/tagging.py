@@ -23,8 +23,10 @@ class GeminiTaggingProvider:
 
     @with_resilience
     def tag_songs(self, songs: List[dict]) -> List[dict]:
+        logger.info(f"[gemini-tagging] tagging {len(songs)} songs: {[s.get('title', '?') for s in songs]}")
         prompt_template = _load_prompt("audio_features_prompt.txt")
         prompt = prompt_template.replace("{songs_list}", json.dumps(songs, indent=2))
+        logger.debug(f"[gemini-tagging] prompt size: {len(prompt)} chars")
         try:
             response = self._client.models.generate_content(
                 model=settings.AUDIO_FEATURES_MODEL,
@@ -33,9 +35,18 @@ class GeminiTaggingProvider:
                     response_mime_type="application/json"
                 ),
             )
-            return json.loads(response.text)
+            logger.debug(f"[gemini-tagging] raw response ({len(response.text)} chars): {response.text[:300]!r}{'...' if len(response.text) > 300 else ''}")
+            parsed = json.loads(response.text)
+            logger.info(f"[gemini-tagging] parsed {len(parsed)} song(s)")
+            for item in parsed:
+                logger.debug(
+                    f"[gemini-tagging] tagged '{item.get('title', '?')}' by '{item.get('artist', '?')}' "
+                    f"— vibe_tags={item.get('vibe_tags', [])} "
+                    f"embedding_text={str(item.get('embedding_text', ''))[:80]!r}"
+                )
+            return parsed
         except Exception as e:
             if isinstance(e, (errors.APIError, AIServiceUnavailableError)):
                 raise
-            logger.error(f"Gemini tag_songs failed: {e}")
+            logger.error(f"[gemini-tagging] tag_songs failed: {e}")
             raise TaggingError(str(e)) from e

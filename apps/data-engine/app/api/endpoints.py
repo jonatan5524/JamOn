@@ -12,6 +12,7 @@ from app.models.api import (
 )
 from app.services.rag import RagEngine
 from app.services import lyrics
+from app.services.enrichment import enrich_song
 from app.services.validator import validate_spotify_uri_via_nestjs
 from app.workflows.playlist_generator import PlaylistGraphBuilder
 
@@ -39,7 +40,30 @@ async def recommend(http_request: Request, request: RecommendRequest):
         raise HTTPException(status_code=400, detail="No songs provided for context")
 
     providers = http_request.app.state.providers
-    input_songs = [{"title": s.title, "artist": s.artist} for s in request.songs]
+
+    raw_songs = [
+        {"track_id": f"{s.title}-{s.artist}",
+         "title": s.title,
+         "artist": s.artist}
+        for s in request.songs
+    ]
+    logger.info(f"Enriching {len(raw_songs)} songs...")
+    # enrich_song does blocking HTTP (Genius/Musixmatch/Last.fm). Run each in a worker
+    # thread and fan out concurrently so we don't block the event loop or serialize I/O.
+    enriched_songs = await asyncio.gather(
+        *(asyncio.to_thread(enrich_song, s) for s in raw_songs)
+    )
+    logger.info(f"Enrichment complete — {sum(1 for e in enriched_songs if e.lyrics_snippet)} with lyrics")
+
+    input_songs = [
+        {
+            "title": e.title,
+            "artist": e.artist,
+            "lastfm_tags": e.lastfm_tags,
+            "lyrics_snippet": e.lyrics_snippet,
+        }
+        for e in enriched_songs
+    ]
 
     logger.info(f"Tagging {len(input_songs)} songs...")
     songs_with_features = await asyncio.to_thread(
@@ -50,15 +74,14 @@ async def recommend(http_request: Request, request: RecommendRequest):
         raise HTTPException(status_code=500, detail="Failed to tag songs")
     logger.info(f"Tagging complete — {len(songs_with_features)} songs tagged")
 
-    logger.info(f"Fetching lyrics for {len(input_songs)} songs...")
-    lyrics_map = await asyncio.to_thread(lyrics.fetch_lyrics_map, input_songs)
-    logger.info(f"Lyrics fetched — {len(lyrics_map)} found")
+    lyrics_map = {e.title: e.lyrics_snippet or "" for e in enriched_songs}
 
     logger.info("Indexing songs in RAG engine...")
     rag = RagEngine(
         vector_store=providers.vector_store,
         embedder=providers.llm.embedding,
         dj=providers.llm.dj,
+        hyde=providers.llm.hyde,
     )
     await asyncio.to_thread(rag.add_songs, songs_with_features, lyrics_map)
     logger.info("RAG indexing complete")
@@ -66,9 +89,9 @@ async def recommend(http_request: Request, request: RecommendRequest):
     async def db_fetch_wrapper(query: str):
         return await rag.query_songs(query, n_results=20)
 
-    async def llm_gen_wrapper(prompt: str, count: int, rejected: List[str], context: List[dict]):
+    async def llm_gen_wrapper(prompt: str, count: int, rejected: List[str], context: List[dict], anchor_artists: List[str]):
         return await asyncio.to_thread(
-            providers.llm.dj.generate_playlist, prompt, context, count, rejected
+            providers.llm.dj.generate_playlist, prompt, context, count, rejected, anchor_artists
         )
 
     builder = PlaylistGraphBuilder(

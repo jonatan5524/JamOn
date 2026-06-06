@@ -13,6 +13,10 @@ class CollegeEmbeddingProvider:
     def embed_document(self, text: str) -> List[float]:
         return self._embed(text)
 
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        # Ollama /api/embeddings accepts a single prompt only — loop per text.
+        return [self._embed(text) for text in texts]
+
     def embed_query(self, text: str) -> List[float]:
         return self._embed(text)
 

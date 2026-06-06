@@ -1,39 +1,90 @@
 # JamOn Orchestrator
 
-NestJS service that takes LLM-generated song recommendations, resolves them to Spotify tracks, and creates playlists on behalf of users.
+NestJS service that acts as the central hub of JamOn: authenticates users with Spotify, fetches their listening history, coordinates with the Python data engine for AI recommendations, and creates the final playlist on Spotify.
 
-## How It Works
+## Architecture & Flow
 
-1. Receives a request with an event description and a Spotify access token
-2. Calls the **Python data-engine** for semantic song recommendations
-3. Searches Spotify for each song to get track URIs
-4. Creates a playlist on the user's Spotify account
-5. Adds the resolved tracks to the playlist
-6. Returns the playlist URL and stats
+```
+POST /playlists/generate  (Authorization: Bearer <spotify_token>)
+            │
+            ▼
+    PlaylistController
+            │
+            ▼
+    PlaylistService
+    │
+    ├── 1. SpotifyService.getTopTracks()
+    │        └── GET /v1/me/top/tracks (top 30)
+    │             → List<{ title, artist }>
+    │
+    ├── 2. DataEngineService.getRecommendations()
+    │        └── POST http://data-engine:8000/recommend
+    │             body: { event_description, songs: [...] }
+    │             → List<{ title, artist, is_new }>
+    │
+    ├── 3. SpotifyService.searchTracks() (parallel)
+    │        └── GET /v1/search per song → Spotify URI
+    │             (only for is_new: true songs)
+    │
+    ├── 4. SpotifyService.createPlaylist()
+    │        └── POST /v1/me/playlists
+    │
+    └── 5. SpotifyService.addTracksToPlaylist()
+             └── POST /v1/playlists/{id}/items
+                  → PlaylistResponseDto
+```
 
-## Setup
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- A running [data-engine](../data-engine/app/README.md) instance
+- A Spotify Developer app with the required OAuth scopes
+
+### Setup
 
 ```bash
 cd apps/orchestrator
 npm install
 ```
 
-## Running
+Create `.env` in `apps/orchestrator/`:
 
-```bash
-npm run start:dev
+```env
+SPOTIFY_CLIENT_ID=your_client_id
+SPOTIFY_CLIENT_SECRET=your_client_secret
+SPOTIFY_REDIRECT_URI=http://localhost:5173/callback
+DATA_ENGINE_URL=http://localhost:8000
 ```
 
-The server starts on `http://localhost:3000`.
-
-## Testing
+### Run
 
 ```bash
-npm test              # run all tests
+npm run start:dev    # development with hot-reload
+npm run start:prod   # production build
+```
+
+Server starts on `http://localhost:3000`. Swagger UI at `http://localhost:3000/api`.
+
+### Test
+
+```bash
+npm test              # unit tests
 npm run test:watch    # watch mode
+npm run test:e2e      # end-to-end tests
 ```
 
-## API
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SPOTIFY_CLIENT_ID` | Yes | Spotify app client ID |
+| `SPOTIFY_CLIENT_SECRET` | Yes | Spotify app client secret |
+| `SPOTIFY_REDIRECT_URI` | Yes | OAuth redirect URI (must match Spotify dashboard) |
+| `DATA_ENGINE_URL` | Yes | Base URL of the Python data-engine (e.g. `http://localhost:8000`) |
+
+## API Reference
 
 ### `POST /playlists/generate`
 
@@ -53,80 +104,74 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `eventDescription` | string | Yes | Event description for song matching (max 200 chars) |
-| `playlistName` | string | No | Custom playlist name (max 100 chars). Defaults to `"JamOn: {eventDescription}"` |
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `eventDescription` | string | Yes | Passed to the AI engine (max 200 chars) |
+| `playlistName` | string | No | Defaults to `"JamOn: {eventDescription}"` (max 100 chars) |
 
-**Success Response (201):**
+**Success (201):**
 ```json
 {
   "playlistId": "abc123",
   "playlistUrl": "https://open.spotify.com/playlist/abc123",
   "tracksAdded": 18,
-  "tracksNotFound": ["Song X by Artist Y"],
+  "tracksNotFound": ["Rare Song by Obscure Artist"],
   "totalRequested": 20
 }
 ```
 
-**Error Responses:**
+**Error responses:**
 
-| Status | Error Code | When |
-|--------|-----------|------|
+| Status | Code | When |
+|--------|------|------|
 | 400 | Validation error | Missing or invalid `eventDescription` |
-| 401 | `SPOTIFY_AUTH_EXPIRED` | Missing Bearer token or Spotify rejected the token |
-| 422 | `NO_TRACKS_RESOLVED` | No songs found on Spotify or data-engine returned empty |
-| 429 | `AI_SERVICE_BUSY` | The AI engine (Python service) is rate-limited or busy |
-| 500 | `PLAYLIST_CREATION_FAILED` | Spotify API error during playlist creation or track addition |
+| 401 | `SPOTIFY_AUTH_EXPIRED` | Missing or rejected Bearer token |
+| 422 | `NO_TRACKS_RESOLVED` | Data engine returned empty or no Spotify URIs resolved |
+| 429 | `AI_SERVICE_BUSY` | Data engine rate-limited |
+| 500 | `PLAYLIST_CREATION_FAILED` | Spotify API error |
 
-## Required Spotify OAuth Scopes
-
-The access token passed in the `Authorization` header must have these scopes:
+### Required Spotify OAuth Scopes
 
 | Scope | Why |
 |-------|-----|
 | `playlist-modify-public` | Create public playlists and add tracks |
 | `playlist-modify-private` | Create private playlists and add tracks |
-| `user-read-private` | Read user profile (validates token) |
+| `user-read-private` | Validate token and read user profile |
+| `user-top-read` | Fetch user's top tracks for personalization |
 
 ## Project Structure
 
 ```
 src/
-├── main.ts                              # App bootstrap
-├── app.module.ts                        # Root module
+├── main.ts                              App bootstrap (port 3000, Swagger, ValidationPipe)
+├── app.module.ts                        Root module
 ├── utils/
-│   └── auth.ts                          # extractBearerToken helper
+│   └── auth.ts                          extractBearerToken helper
 └── modules/
+    ├── auth/                            Spotify OAuth flow
+    ├── user/                            User entity + management
+    ├── event/                           Event entity (user-created events)
     ├── spotify/
-    │   ├── spotify.module.ts            # HttpModule + SpotifyService
-    │   ├── spotify.service.ts           # Spotify API wrapper (search, create, add)
-    │   └── spotify.types.ts             # Spotify response types
+    │   ├── spotify.module.ts
+    │   ├── spotify.service.ts           Spotify API wrapper: search, create playlist,
+    │   │                                add tracks, getTopTracks, getArtistsBatch
+    │   └── spotify.types.ts             Typed Spotify API response shapes
     ├── data-engine/
     │   ├── data-engine.module.ts
-    │   └── data-engine.service.ts       # HTTP client for Python data-engine
+    │   └── data-engine.service.ts       HTTP client: POST /recommend to Python service
     └── playlist/
         ├── playlist.module.ts
-        ├── playlist.controller.ts       # POST /playlists/generate
-        ├── playlist.service.ts          # Orchestration logic
+        ├── playlist.controller.ts       POST /playlists/generate
+        ├── playlist.service.ts          Orchestration: top tracks → data-engine → Spotify
         └── dto/
-            ├── create-playlist.dto.ts   # Request validation
-            └── playlist-response.dto.ts # Response types + error enum
+            ├── create-playlist.dto.ts
+            └── playlist-response.dto.ts
 ```
 
 ## Spotify API Notes
 
-- **Search:** `GET /v1/search` — no special scope needed with user token
-- **Create playlist:** `POST /v1/me/playlists` — uses `/me` instead of `/users/{id}` (dev mode restriction)
-- **Add tracks:** `POST /v1/playlists/{id}/items` — uses `/items` not `/tracks` (endpoint changed Feb 2026)
-- **HTTP client:** Uses `@nestjs/axios` (HttpModule) for all Spotify calls via a shared `spotifyRequest` base method
-
-## Data-Engine Integration
-
-The orchestrator calls the Python data-engine service via:
-
-```
-POST http://data-engine:8000/recommend
-Body: { "event_description": "...", "songs": [...] }
-Response: [{ "title": "...", "artist": "...", "is_new": true/false }]
-```
+- **Top tracks:** `GET /v1/me/top/tracks` — requires `user-top-read` scope.
+- **Search:** `GET /v1/search` — no special scope needed with a user token.
+- **Create playlist:** `POST /v1/me/playlists` — uses `/me` (dev mode restriction prevents `/users/{id}`).
+- **Add tracks:** `POST /v1/playlists/{id}/items` — use `/items`, not `/tracks` (endpoint changed Feb 2026).
+- **HTTP client:** `@nestjs/axios` via a shared `spotifyRequest` base method with automatic auth header injection.

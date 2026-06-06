@@ -12,28 +12,54 @@ from app.providers.exceptions import ConfigurationError, EmbeddingError, Tagging
 from app.providers.llm.factory import LLMProviderFactory
 from app.providers.vectordb.factory import VectorStoreFactory
 
+_log_level = getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
 logging.basicConfig(
-    level=logging.INFO,
+    level=_log_level,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+logging.getLogger().setLevel(_log_level)  # override even if uvicorn pre-configured handlers
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if settings.LLM_PROVIDER == "gemini" and not settings.GEMINI_API_KEY:
-        logger.error("GEMINI_API_KEY not set. Exiting.")
+    tasks = {
+        "embedding": settings.EMBEDDING_PROVIDER,
+        "tagging": settings.TAGGING_PROVIDER,
+        "dj": settings.DJ_PROVIDER,
+        "hyde": settings.HYDE_PROVIDER,
+    }
+    uses_gemini = any(p == "gemini" for p in tasks.values()) or settings.LLM_PROVIDER == "gemini"
+    uses_college = any(p == "college" for p in tasks.values()) or settings.LLM_PROVIDER == "college"
+    uses_nim = any(p == "nim" for p in tasks.values()) or settings.LLM_PROVIDER == "nim"
+
+    if uses_gemini and not settings.GEMINI_API_KEY:
+        logger.error("GEMINI_API_KEY not set but a task uses gemini. Exiting.")
+        sys.exit(1)
+    if uses_college and not (settings.COLLEGE_USERNAME and settings.COLLEGE_PASSWORD):
+        logger.error("COLLEGE_USERNAME/COLLEGE_PASSWORD not set but a task uses college. Exiting.")
+        sys.exit(1)
+    if uses_nim and not settings.NVIDIA_API_KEY:
+        logger.error("NVIDIA_API_KEY not set but a task uses nim. Exiting.")
         sys.exit(1)
     if not os.environ.get("GENIUS_ACCESS_TOKEN"):
         logger.error("GENIUS_ACCESS_TOKEN not set. Exiting.")
         sys.exit(1)
 
     try:
-        llm_container, embed_config = LLMProviderFactory.create(settings.LLM_PROVIDER)
+        llm_container, embed_config = LLMProviderFactory.create(
+            settings.LLM_PROVIDER,
+            embedding=settings.EMBEDDING_PROVIDER,
+            tagging=settings.TAGGING_PROVIDER,
+            dj=settings.DJ_PROVIDER,
+            hyde=settings.HYDE_PROVIDER,
+        )
         vector_store = VectorStoreFactory.create(settings.VECTOR_DB_PROVIDER, embed_config)
         app.state.providers = AppContainer(llm=llm_container, vector_store=vector_store)
         logger.info(
-            f"Providers ready — LLM: {settings.LLM_PROVIDER}, "
+            f"Providers ready — embedding: {settings.EMBEDDING_PROVIDER}, "
+            f"tagging: {settings.TAGGING_PROVIDER}, dj: {settings.DJ_PROVIDER}, "
+            f"hyde: {settings.HYDE_PROVIDER}, "
             f"VectorDB: {settings.VECTOR_DB_PROVIDER}, "
             f"Collection: {vector_store.collection_name}"
         )

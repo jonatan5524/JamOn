@@ -17,7 +17,7 @@ export class Event {
   id!: string;
 
   @Index({ unique: true })
-  @Column({ type: "varchar", length: 6 })
+  @Column({ type: "varchar", length: 6, nullable: true })
   code!: string;
 
   @Column({ type: "text" })

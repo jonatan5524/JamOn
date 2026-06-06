@@ -19,6 +19,12 @@ Mentally estimate the following Spotify Audio Features for each track and use th
 **Input Data:**
 {songs_list}
 
+Each song entry may include:
+- `lastfm_tags`: Community-generated tags from Last.fm (use for mood, era, regional style)
+- `lyrics_snippet`: A short excerpt of lyrics (use for mood, language, thematic content)
+
+Use whichever signals are present. If a field is null or empty, rely on your musicological knowledge of the artist and title.
+
 **Required Output Schema (JSON):**
 [
   {

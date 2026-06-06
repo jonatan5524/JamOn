@@ -53,7 +53,10 @@ export class AuthService {
 
     await this.userService.updateAppRefreshToken(user.id, appRefreshToken);
 
-    this.triggerLibrarySync(spotifyTokens.access_token, user.id);
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    if (!user.lastUpdatedSongs || user.lastUpdatedSongs < oneWeekAgo) {
+      this.triggerLibrarySync(spotifyTokens.access_token, user.id);
+    }
 
     return {
       appAccessToken,

@@ -24,6 +24,7 @@ export class DataEngineService {
         this.httpService.post<CreateSongDto[]>('/ingest-batch', tracks),
       );
       this.logger.log(`Ingest batch complete — received ${data.length} indexed songs`);
+      
       return data;
     } catch (error: any) {
       this.logger.error(`Failed to ingest batch: ${error.message}`);

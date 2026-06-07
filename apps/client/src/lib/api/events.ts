@@ -38,6 +38,7 @@ interface BackendEvent {
   context: string | null;
   createdAt: string;
   participants?: BackendParticipant[];
+  viewerRole?: "creator" | "participant";
   playlistId?: string | null;
   playlistUrl?: string | null;
   tracksAdded?: number | null;
@@ -75,10 +76,6 @@ const mapParticipant = (p: BackendParticipant): Participant => {
   };
 };
 
-// GET /api/events — endpoint does not exist on backend yet.
-export const listEvents = (): Promise<EventSummary[]> =>
-  USE_MOCKS ? delay(MOCK_EVENT_SUMMARIES) : apiFetch<EventSummary[]>("/events");
-
 // GET /api/events/:id
 export const getEvent = async (eventId: string): Promise<EventDetail> => {
   const raw = await apiFetch<BackendEvent>(`/events/${eventId}`);
@@ -101,6 +98,7 @@ export const getEvent = async (eventId: string): Promise<EventDetail> => {
         }
       : null,
     contributions: [],
+    viewerRole: raw.viewerRole ?? "participant",
   };
 };
 
@@ -123,8 +121,6 @@ export const findEventByCode = async (code: string): Promise<EventSummary> => {
 export const createEvent = async (
   payload: CreateEventRequest,
 ): Promise<EventSummary> => {
-  console.log("Creating event with payload:", payload);
-
   const response = await api.post<EventSummary>("/events", {
     title: payload.title,
     context: payload.context,

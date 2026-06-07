@@ -23,6 +23,8 @@ import {
 import { CreateEventDto } from "./dto/create-event.dto";
 import { AuthGuard } from "@nestjs/passport";
 import { EventsService } from "./event.service";
+import { EventRole } from "./event-role.decorator";
+import { EventRoleGuard } from "./event-role.guard";
 import { PlaylistService } from "../playlist/playlist.service";
 import { UserService } from "../user/user.service";
 import { PlaylistError } from "../playlist/dto/playlist-response.dto";
@@ -79,19 +81,21 @@ export class EventsController {
     return this.eventsService.findByCode(code);
   }
 
-  @Get('/my')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Lists all events the authenticated user is participating in' })
-  @ApiResponse({ status: 200, description: 'List of user events.' })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 500, description: 'Internal Server Error.' })
+  @Get("/my")
+  @UseGuards(AuthGuard("jwt"))
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Lists all events the authenticated user is participating in",
+  })
+  @ApiResponse({ status: 200, description: "List of user events." })
+  @ApiResponse({ status: 401, description: "Unauthorized." })
+  @ApiResponse({ status: 500, description: "Internal Server Error." })
   async getMyEvents(@Req() req: any) {
     const userId = req.user.userId;
     return await this.eventsService.findByUserId(userId);
   }
 
-  @Post(':id/join')
+  @Post(":id/join")
   @HttpCode(HttpStatus.OK)
   @UseGuards(AuthGuard("jwt"))
   @ApiBearerAuth("JWT-auth")
@@ -109,16 +113,28 @@ export class EventsController {
   }
 
   @Get(":id")
+  @UseGuards(AuthGuard("jwt"))
+  @ApiBearerAuth("JWT-auth")
   @ApiOperation({ summary: "Event detail with participants" })
   @ApiParam({ name: "id", description: "Event ID" })
   @ApiResponse({ status: 200, description: "Event detail." })
+  @ApiResponse({ status: 401, description: "Unauthorized." })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden. User is not a member of this event.",
+  })
   @ApiResponse({ status: 404, description: "Event not found." })
-  async getEventDetails(@Param("id") id: string) {
-    return this.eventsService.findById(id);
+  async getEventDetails(@Param("id") id: string, @Req() req: any) {
+    const userId = req.user.userId;
+    if (!userId) {
+      throw new UnauthorizedException("User ID not found in token");
+    }
+    return this.eventsService.findById(id, userId);
   }
 
   @Post(":id/generate-playlist")
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), EventRoleGuard)
+  @EventRole("creator")
   @ApiBearerAuth("JWT-auth")
   @ApiOperation({
     summary: "Generates/Regenerates a Spotify playlist using Data Processing",
@@ -128,6 +144,10 @@ export class EventsController {
   @ApiResponse({
     status: 401,
     description: "Unauthorized or Spotify token missing.",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden. Only the event host can generate the playlist.",
   })
   @ApiResponse({ status: 404, description: "Event not found." })
   async generatePlaylist(@Param("id") id: string, @Req() req: any) {
@@ -139,7 +159,7 @@ export class EventsController {
     }
     this.logger.log(`[generate-playlist] userId=${userId}`);
 
-    const event = await this.eventsService.findById(id);
+    const event = await this.eventsService.findById(id, userId);
     this.logger.log(
       `[generate-playlist] Event found: title="${event.title}", context="${event.context}"`,
     );

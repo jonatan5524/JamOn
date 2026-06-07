@@ -37,4 +37,7 @@ export class User {
 
     @UpdateDateColumn()
     updatedAt!: Date;
+
+    @Column({ type: 'timestamptz', name: 'last_updated_songs', nullable: true })
+    lastUpdatedSongs!: Date | null;
 }

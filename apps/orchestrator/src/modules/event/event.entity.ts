@@ -29,11 +29,11 @@ export class Event {
   @CreateDateColumn({ type: "timestamptz", name: "created_at" })
   createdAt!: Date;
 
-  @Column({type: 'uuid', name: 'created_by' })
+  @Column({ type: "uuid", name: "created_by" })
   createdBy!: string;
 
   @ManyToOne(() => User)
-  @JoinColumn({ name: 'created_by' })
+  @JoinColumn({ name: "created_by" })
   creator!: User;
 
   @Column({ type: "varchar", nullable: true, name: "playlist_id" })

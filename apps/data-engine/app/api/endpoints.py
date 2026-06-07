@@ -9,7 +9,9 @@ from app.models.api import (
     RecommendedSong,
     LyricsBatchRequest,
     LyricsBatchResponse,
+    IngestedSong,
 )
+from app.models.song import Track
 from app.services.rag import RagEngine
 from app.services import lyrics
 from app.services.enrichment import enrich_song
@@ -18,6 +20,18 @@ from app.workflows.playlist_generator import PlaylistGraphBuilder
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _build_embedding_text(song: dict, lyrics: str) -> str:
+    if song.get("embedding_text"):
+        return f"{song['embedding_text']}\n\nLyrics Snippet:\n{lyrics[:500]}..."
+    return (
+        f"Title: {song.get('title', '')}\nArtist: {song.get('artist', '')}\n"
+        f"Energy: {song.get('energy_desc', '')}\n"
+        f"Mood: {song.get('mood_desc', '')}\n"
+        f"Tags: {', '.join(song.get('vibe_tags', []))}\n"
+        f"Lyrics: {lyrics[:500]}..."
+    )
 
 
 @router.post(
@@ -144,3 +158,46 @@ async def lyrics_batch(request: LyricsBatchRequest):
     input_songs = [{"title": s.title, "artist": s.artist} for s in request.songs]
     results = await asyncio.to_thread(lyrics.fetch_lyrics_batch, input_songs)
     return LyricsBatchResponse(songs=results)
+
+
+@router.post(
+    "/ingest-batch",
+    response_model=List[IngestedSong],
+    tags=["Indexing"],
+    summary="Tag features and create an embedding for a batch of tracks",
+    response_description="A list of songs with their generated embeddings",
+)
+async def ingest_batch(http_request: Request, tracks: List[Track]):
+    if not tracks:
+        raise HTTPException(status_code=400, detail="No tracks provided")
+
+    providers = http_request.app.state.providers
+    input_songs = [{"title": t.title, "artist": t.artist} for t in tracks]
+
+    logger.info(f"Tagging {len(input_songs)} songs...")
+    songs_with_features = await asyncio.to_thread(
+        providers.llm.tagging.tag_songs, input_songs
+    )
+    if not songs_with_features:
+        raise HTTPException(status_code=500, detail="Failed to tag songs")
+
+    logger.info(f"Fetching lyrics for {len(input_songs)} songs...")
+    lyrics_map = await asyncio.to_thread(lyrics.fetch_lyrics_map, input_songs)
+
+    def _embed_all() -> List[IngestedSong]:
+        results: List[IngestedSong] = []
+        for song in songs_with_features:
+            title = song.get("title", "")
+            artist = song.get("artist", "")
+            text = _build_embedding_text(song, lyrics_map.get(title, ""))
+            vector = providers.llm.embedding.embed_document(text)
+            if vector:
+                results.append(
+                    IngestedSong(name=title, artist_name=artist, embedding=vector)
+                )
+        return results
+
+    logger.info("Creating embeddings...")
+    ingested = await asyncio.to_thread(_embed_all)
+    logger.info(f"Ingested {len(ingested)} songs")
+    return ingested

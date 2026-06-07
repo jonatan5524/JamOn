@@ -168,36 +168,69 @@ async def lyrics_batch(request: LyricsBatchRequest):
     response_description="A list of songs with their generated embeddings",
 )
 async def ingest_batch(http_request: Request, tracks: List[Track]):
+    logger.info("===== /ingest-batch START =====")
+    logger.info(f"Tracks received: {len(tracks)}")
+
     if not tracks:
         raise HTTPException(status_code=400, detail="No tracks provided")
 
     providers = http_request.app.state.providers
-    input_songs = [{"title": t.title, "artist": t.artist} for t in tracks]
+
+    raw_songs = [
+        {"track_id": f"{t.title}-{t.artist}", "title": t.title, "artist": t.artist}
+        for t in tracks
+    ]
+
+    logger.info(f"Enriching {len(raw_songs)} songs...")
+    enriched_songs = await asyncio.gather(
+        *(asyncio.to_thread(enrich_song, s) for s in raw_songs)
+    )
+    logger.info(
+        f"Enrichment complete — {sum(1 for e in enriched_songs if e.lyrics_snippet)} with lyrics"
+    )
+
+    input_songs = [
+        {
+            "title": e.title,
+            "artist": e.artist,
+            "lastfm_tags": e.lastfm_tags,
+            "lyrics_snippet": e.lyrics_snippet,
+        }
+        for e in enriched_songs
+    ]
 
     logger.info(f"Tagging {len(input_songs)} songs...")
     songs_with_features = await asyncio.to_thread(
         providers.llm.tagging.tag_songs, input_songs
     )
     if not songs_with_features:
+        logger.error("Tagging returned empty result")
         raise HTTPException(status_code=500, detail="Failed to tag songs")
+    logger.info(f"Tagging complete — {len(songs_with_features)} songs tagged")
 
-    logger.info(f"Fetching lyrics for {len(input_songs)} songs...")
-    lyrics_map = await asyncio.to_thread(lyrics.fetch_lyrics_map, input_songs)
+    lyrics_map = {e.title: e.lyrics_snippet or "" for e in enriched_songs}
 
-    def _embed_all() -> List[IngestedSong]:
-        results: List[IngestedSong] = []
-        for song in songs_with_features:
-            title = song.get("title", "")
-            artist = song.get("artist", "")
-            text = _build_embedding_text(song, lyrics_map.get(title, ""))
-            vector = providers.llm.embedding.embed_document(text)
-            if vector:
-                results.append(
-                    IngestedSong(name=title, artist_name=artist, embedding=vector)
+    texts = [
+        _build_embedding_text(song, lyrics_map.get(song.get("title", ""), ""))
+        for song in songs_with_features
+    ]
+
+    logger.info(f"Creating embeddings for {len(texts)} songs...")
+    vectors = await asyncio.to_thread(providers.llm.embedding.embed_documents, texts)
+    logger.info(f"Embeddings created — {len(vectors)} vectors")
+
+    results: List[IngestedSong] = []
+    for song, vector in zip(songs_with_features, vectors):
+        if vector:
+            results.append(
+                IngestedSong(
+                    name=song.get("title", ""),
+                    artist_name=song.get("artist", ""),
+                    embedding=vector,
                 )
-        return results
+            )
+        else:
+            logger.warning(f"No embedding for '{song.get('title', '?')}' by '{song.get('artist', '?')}' — skipping")
 
-    logger.info("Creating embeddings...")
-    ingested = await asyncio.to_thread(_embed_all)
-    logger.info(f"Ingested {len(ingested)} songs")
-    return ingested
+    logger.info(f"===== /ingest-batch DONE — returning {len(results)} songs =====")
+    return results

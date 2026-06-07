@@ -867,3 +867,80 @@ async def test_playlist_graph_builder_passes_anchor_artists_to_llm():
     assert "BLACKPINK" in captured_anchor_artists
     # Deduplicated: BTS appears twice in db_songs but once in anchor list
     assert captured_anchor_artists.count("BTS") == 1
+
+
+# ---------------------------------------------------------------------------
+# Task 1: ingest_batch must enrich before tagging, use lastfm_tags, batch embed
+# ---------------------------------------------------------------------------
+def _make_enriched_song(title: str, artist: str):
+    from app.models.song import EnrichedSong
+    return EnrichedSong(
+        track_id=f"{title}-{artist}",
+        title=title,
+        artist=artist,
+        lastfm_tags=["pop", "dance"],
+        lyrics_snippet="Some lyrics snippet here",
+        lyrics_source="genius",
+    )
+
+
+@pytest.mark.asyncio
+async def test_ingest_batch_enriches_before_tagging_and_batch_embeds():
+    """
+    ingest_batch must:
+    - call enrich_song per track (not fetch_lyrics_map)
+    - pass lastfm_tags + lyrics_snippet to tag_songs
+    - call embed_documents once with all texts (not embed_document in a loop)
+    """
+    from unittest.mock import MagicMock, patch
+    from fastapi.testclient import TestClient
+
+    tracks_payload = [
+        {"title": "Song A", "artist": "Artist A"},
+        {"title": "Song B", "artist": "Artist B"},
+    ]
+
+    fake_tagged = [
+        {"title": "Song A", "artist": "Artist A", "embedding_text": "Song A vibe tags text"},
+        {"title": "Song B", "artist": "Artist B", "embedding_text": "Song B vibe tags text"},
+    ]
+    fake_vectors = [[0.1] * 10, [0.2] * 10]
+
+    mock_tagging = MagicMock()
+    mock_tagging.tag_songs.return_value = fake_tagged
+
+    mock_embedding = MagicMock()
+    mock_embedding.embed_documents.return_value = fake_vectors
+
+    mock_providers = MagicMock()
+    mock_providers.llm.tagging = mock_tagging
+    mock_providers.llm.embedding = mock_embedding
+
+    from app.main import app as fastapi_app
+
+    with patch("app.api.endpoints.enrich_song", side_effect=lambda s: _make_enriched_song(s["title"], s["artist"])) as mock_enrich, \
+         patch("app.api.endpoints.lyrics") as mock_lyrics_mod:
+
+        client = TestClient(fastapi_app)
+        fastapi_app.state.providers = mock_providers
+        resp = client.post("/ingest-batch", json=tracks_payload)
+
+        # enrich_song called for each track, fetch_lyrics_map not called
+        assert mock_enrich.call_count == 2, f"Expected enrich_song called 2 times, got {mock_enrich.call_count}"
+        mock_lyrics_mod.fetch_lyrics_map.assert_not_called()
+
+        # tag_songs received input with lastfm_tags and lyrics_snippet
+        tagged_input = mock_tagging.tag_songs.call_args.args[0]
+        assert "lastfm_tags" in tagged_input[0], "tag_songs input missing lastfm_tags"
+        assert "lyrics_snippet" in tagged_input[0], "tag_songs input missing lyrics_snippet"
+
+        # embed_documents called once (not embed_document in a loop)
+        mock_embedding.embed_documents.assert_called_once()
+        mock_embedding.embed_document.assert_not_called()
+
+        # Response contains one IngestedSong per successfully embedded track
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        body = resp.json()
+        assert len(body) == 2
+        assert body[0]["name"] == "Song A"
+        assert body[0]["embedding"] == [0.1] * 10

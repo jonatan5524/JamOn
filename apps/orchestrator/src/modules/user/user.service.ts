@@ -38,6 +38,10 @@ export class UserService {
     return await this.userRepository.save(user);
   }
 
+  async updateLastUpdatedSongs(userId: string): Promise<void> {
+    await this.userRepository.update(userId, { lastUpdatedSongs: new Date() });
+  }
+
   async updateAppRefreshToken(
     userId: string,
     refreshToken: string | null,

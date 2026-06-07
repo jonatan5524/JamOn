@@ -24,3 +24,8 @@ class LyricsResult(BaseModel):
 
 class LyricsBatchResponse(BaseModel):
     songs: List[LyricsResult]
+
+class IngestedSong(BaseModel):
+    name: str = Field(..., example="Levitating")
+    artist_name: str = Field(..., serialization_alias="artistName", example="Dua Lipa")
+    embedding: List[float] = Field(..., description="Vector embedding produced for the song")

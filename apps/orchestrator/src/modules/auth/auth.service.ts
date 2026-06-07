@@ -5,6 +5,9 @@ import { ConfigService } from "@nestjs/config";
 import { firstValueFrom } from "rxjs";
 import { randomBytes } from "crypto";
 import { UserService } from "../user/user.service";
+import { SpotifyService } from "../spotify/spotify.service";
+import { DataEngineService } from "../data-engine/data-engine.service";
+import { SongService } from "../song/song.service";
 
 export interface SpotifyTokenResponse {
   access_token: string;
@@ -23,6 +26,9 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
+    private readonly spotifyService: SpotifyService,
+    private readonly dataEngineService: DataEngineService,
+    private readonly songService: SongService,
   ) { }
 
   async handleLogin(code: string) {
@@ -47,11 +53,41 @@ export class AuthService {
 
     await this.userService.updateAppRefreshToken(user.id, appRefreshToken);
 
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    if (!user.lastUpdatedSongs || user.lastUpdatedSongs < oneWeekAgo) {
+      this.triggerLibrarySync(spotifyTokens.access_token, user.id);
+    }
+
     return {
       appAccessToken,
       appRefreshToken,
       spotifyAccessToken: spotifyTokens.access_token,
     };
+  }
+
+  private async triggerLibrarySync(spotifyAccessToken: string, userId: string): Promise<void> {
+    try {
+      const tracks = await this.spotifyService.getTopTracks(spotifyAccessToken);
+      const songs = await this.songService.upsertSongsFromTracks(tracks);
+
+      await this.songService.bulkUpsertLikes(userId, songs.map((s) => s.id));
+      this.logger.log(`Library sync: saved ${songs.length} song(s) and updated likes for user ${userId}`);
+
+      const unindexed = songs.filter((s) => !s.embedding);
+      if (unindexed.length === 0) {
+        this.logger.log('Library sync: all tracks already have embeddings');
+      } else {
+        this.logger.log(`Library sync: sending ${unindexed.length} track(s) to data-engine for embedding`);
+        const simplifiedTracks = unindexed.map((s) => ({ title: s.name, artist: s.artistName }));
+        const dtos = await this.dataEngineService.ingestBatch(simplifiedTracks);
+        await this.songService.updateEmbeddings(dtos);
+      }
+
+      await this.userService.updateLastUpdatedSongs(userId);
+      this.logger.log('Library sync complete');
+    } catch (error: any) {
+      this.logger.error(`Library sync failed: ${error.message}`);
+    }
   }
 
   private async getSpotifyProfile(accessToken: string) {

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class PlaylistGraphBuilder:
     def __init__(
         self, 
-        llm_generator: Callable[[str, int, List[str], List[Dict[str, Any]]], Awaitable[List[Dict[str, Any]]]], 
+        llm_generator: Callable[[str, int, List[str], List[Dict[str, Any]], List[str]], Awaitable[List[Dict[str, Any]]]],
         db_fetcher: Callable[[str], Awaitable[List[Dict[str, Any]]]], 
         uri_validator: Callable[[Dict[str, Any]], Awaitable[bool]], 
         target_wildcards: int = 5, 
@@ -27,15 +27,18 @@ class PlaylistGraphBuilder:
         logger.info(f"Starting initial fetch for event: {state.event_description}")
         # Sequential: Fetch DB songs first, then use them as context for LLM
         db_songs = await self.db_fetcher(state.event_description)
+        anchor_artists = list({s["artist"] for s in db_songs if s.get("artist")})
         candidate_wildcards = await self.llm_generator(
-            state.event_description, 
-            self.target_wildcards, 
-            [], 
-            db_songs
+            state.event_description,
+            self.target_wildcards,
+            [],
+            db_songs,
+            anchor_artists,
         )
-        
+
         return {
             "db_songs": db_songs,
+            "anchor_artists": anchor_artists,
             "candidate_wildcards": candidate_wildcards,
             "attempts": 1
         }
@@ -52,6 +55,10 @@ class PlaylistGraphBuilder:
             for song, is_valid in zip(candidates, validation_results):
                 if is_valid:
                     validated.append(song)
+                    logger.info(
+                        f"  [wildcard ACCEPTED] {song.get('title', 'Unknown')} "
+                        f"— {song.get('artist', 'Unknown')}"
+                    )
                 else:
                     song_name = f"{song.get('title', 'Unknown')} by {song.get('artist', 'Unknown')}"
                     rejected.append(song_name)
@@ -68,10 +75,11 @@ class PlaylistGraphBuilder:
         logger.info(f"Regenerating {missing} missing wildcards (Attempt {state.attempts + 1})")
         
         new_candidates = await self.llm_generator(
-            state.event_description, 
-            missing, 
+            state.event_description,
+            missing,
             state.rejected_wildcards,
-            state.db_songs
+            state.db_songs,
+            state.anchor_artists,
         )
         
         return {
@@ -103,7 +111,22 @@ class PlaylistGraphBuilder:
                 deduped.append(song)
                 
         random.shuffle(deduped)
-        logger.info(f"Final playlist generated with {len(deduped)} songs")
+
+        library_count = sum(1 for s in deduped if s.get("source") != "new_suggestion")
+        ai_count = len(deduped) - library_count
+        logger.info(
+            f"Final playlist: {len(deduped)} songs — "
+            f"{library_count} from library, {ai_count} AI-generated"
+        )
+        for song in deduped:
+            source = "AI" if song.get("source") == "new_suggestion" else "LIBRARY"
+            dist = song.get("distance")
+            dist_str = f" | cosine_dist={dist:.4f}" if dist is not None else ""
+            logger.info(
+                f"  [{source}] {song.get('title', 'Unknown')} "
+                f"— {song.get('artist', 'Unknown')}{dist_str}"
+            )
+
         return {"final_playlist": deduped}
 
     def build(self):

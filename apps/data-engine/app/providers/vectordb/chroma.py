@@ -26,10 +26,11 @@ class ChromaVectorStore:
         lyrics_map: dict,
         embedder: EmbeddingProvider,
     ) -> None:
-        ids, documents, metadatas, embeddings = [], [], [], []
+        ids, documents, metadatas = [], [], []
+        prepared = []  # (text, song) pairs, one per input song
 
-        print(songs_with_features)
-        for i, song in enumerate(songs_with_features):
+        logger.info(f"[chroma] preparing {len(songs_with_features)} songs for embedding")
+        for song in songs_with_features:
             title = song.get("title", "")
             artist = song.get("artist", "")
             lyrics = lyrics_map.get(title, "")
@@ -44,18 +45,36 @@ class ChromaVectorStore:
                     f"Tags: {', '.join(song.get('vibe_tags', []))}\n"
                     f"Lyrics: {lyrics[:500]}..."
                 )
+            logger.debug(
+                f"[chroma] embedding text for '{title}' by '{artist}' "
+                f"({len(text)} chars): {text[:150]!r}..."
+            )
+            prepared.append((text, song))
 
-            vector = embedder.embed_document(text)
+        if not prepared:
+            logger.warning("[chroma] no songs to embed — aborting add_songs")
+            return
+
+        logger.info(f"[chroma] calling embedder.embed_documents for {len(prepared)} songs")
+        # Single batched embedding call for the whole library.
+        vectors = embedder.embed_documents([text for text, _ in prepared])
+        logger.info(f"[chroma] got {len(vectors)} vectors back from embedder")
+
+        embeddings = []
+        for i, ((text, song), vector) in enumerate(zip(prepared, vectors)):
+            title = song.get("title", "")
             if not vector:
+                logger.warning(f"[chroma] empty vector for '{title}' at index {i} — skipping")
                 continue
-
+            logger.debug(f"[chroma] vector for '{title}': dims={len(vector)}")
             if self._expected_dims and len(vector) != self._expected_dims:
                 raise CollectionMismatchError(
                     f"Expected {self._expected_dims}-dim vector for collection "
                     f"'{self.collection_name}', got {len(vector)}-dim from "
                     f"provider '{embedder.provider_id}'"
                 )
-
+            title = song.get("title", "")
+            artist = song.get("artist", "")
             ids.append(str(i))
             documents.append(text)
             metadatas.append({
@@ -107,5 +126,16 @@ class ChromaVectorStore:
             retrieved.append(meta)
             if distance <= max_distance:
                 filtered.append(meta)
+
+        logger.info(
+            f"Vector search: {len(retrieved)} candidates, "
+            f"{len(filtered)} passed max_distance={max_distance}"
+        )
+        for meta, distance in zip(metadatas, distances):
+            status = "PASS" if distance <= max_distance else "FAIL"
+            logger.info(
+                f"  [{status}] {meta.get('title')} — {meta.get('artist')} "
+                f"| cosine_dist={distance:.4f}"
+            )
 
         return filtered if filtered else retrieved

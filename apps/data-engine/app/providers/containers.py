@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from app.providers.protocols import EmbeddingProvider, TaggingProvider, DJProvider, VectorStore
+from app.providers.protocols import EmbeddingProvider, TaggingProvider, DJProvider, HyDEProvider, VectorStore
 
 
 @dataclass
@@ -13,6 +13,7 @@ class LLMProviderContainer:
     embedding: EmbeddingProvider
     tagging: TaggingProvider
     dj: DJProvider
+    hyde: HyDEProvider
 
 
 @dataclass

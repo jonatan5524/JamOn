@@ -1,9 +1,8 @@
-import { Entity, PrimaryColumn, CreateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
+import { Entity, PrimaryColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Event } from './event.entity';
 import { User } from '../user/user.entity';
 
 @Entity('event_participants')
-@Index(['event', 'user'], { unique: true })
 export class EventParticipant {
     @PrimaryColumn({ type: 'bigint', name: 'event_id' })
     eventId!: string;

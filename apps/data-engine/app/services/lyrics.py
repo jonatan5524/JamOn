@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 import re
 from html import unescape
 from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional
 from urllib import error, parse, request
+
+logger = logging.getLogger(__name__)
 
 
 GENIUS_API_BASE_URL = "https://api.genius.com"
@@ -145,9 +148,12 @@ def search_song_on_genius(title: str, artist: str) -> Optional[Dict[str, Any]]:
     if not access_token:
         raise GeniusLyricsError("GENIUS_ACCESS_TOKEN is not configured")
 
-    search_url = f"{GENIUS_API_BASE_URL}/search?{parse.urlencode({'q': f'{title} {artist}'.strip()})}"
+    query = f"{title} {artist}".strip()
+    logger.info(f"[genius] searching for '{query}'")
+    search_url = f"{GENIUS_API_BASE_URL}/search?{parse.urlencode({'q': query})}"
     data = _request_json(search_url, headers={"Authorization": f"Bearer {access_token}"})
     hits = data.get("response", {}).get("hits", [])
+    logger.debug(f"[genius] got {len(hits)} hits for '{query}'")
     requested_artist = artist.lower()
 
     for hit in hits:
@@ -157,36 +163,46 @@ def search_song_on_genius(title: str, artist: str) -> Optional[Dict[str, Any]]:
 
         primary_artist = result.get("primary_artist", {}).get("name", "").lower()
         if primary_artist and (primary_artist in requested_artist or requested_artist in primary_artist):
+            logger.debug(
+                f"[genius] artist-match hit: '{result.get('full_title')}' "
+                f"by '{primary_artist}' → {result.get('url')}"
+            )
             return result
 
     for hit in hits:
         result = hit.get("result", {})
         if hit.get("type") == "song" and result.get("url"):
+            logger.debug(
+                f"[genius] fallback hit (no artist match): '{result.get('full_title')}' "
+                f"→ {result.get('url')}"
+            )
             return result
 
+    logger.info(f"[genius] no match found for '{title}' by '{artist}'")
     return None
 
 
 def fetch_lyrics_for_song(title: str, artist: str) -> Dict[str, Any]:
     song = search_song_on_genius(title, artist)
-    if not song:
-        return {
-            "title": title,
-            "artist": artist,
-            "found": False,
-            "lyrics": "",
-        }
+    if song:
+        logger.info(f"[genius] fetching page: {song['url']}")
+        html = _request_text(song["url"])
+        raw = extract_lyrics_from_html(html)
+        logger.debug(f"[genius] extracted {len(raw)} chars of raw lyrics for '{title}'")
+        lyrics = cleanup_lyrics(raw)
+        logger.debug(f"[genius] cleaned to {len(lyrics)} chars for '{title}'")
+        if lyrics:
+            return {
+                "title": title,
+                "artist": artist,
+                "found": True,
+                "genius_url": song["url"],
+                "lyrics": lyrics,
+                "lyrics_source": "genius",
+            }
+        logger.info(f"[genius] page fetched but lyrics empty after cleanup for '{title}'")
 
-    html = _request_text(song["url"])
-    lyrics = cleanup_lyrics(extract_lyrics_from_html(html))
-
-    return {
-        "title": title,
-        "artist": artist,
-        "found": bool(lyrics),
-        "genius_url": song["url"],
-        "lyrics": lyrics,
-    }
+    return {"title": title, "artist": artist, "found": False, "lyrics": "", "lyrics_source": None}
 
 
 def fetch_lyrics_batch(songs: List[Dict[str, str]]) -> List[Dict[str, Any]]:

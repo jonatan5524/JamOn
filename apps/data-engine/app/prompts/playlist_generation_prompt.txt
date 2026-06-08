@@ -3,6 +3,9 @@ I need a playlist for a specific event. I have performed a semantic search on th
 **The Event:**
 "{event_description}"
 
+**Artist Space (from group's listening history — anchor wildcard suggestions to these artists and similar ones):**
+{anchor_artist_list}
+
 **User's Matching Library (Context):**
 {context_str}
 
@@ -13,7 +16,8 @@ I need a playlist for a specific event. I have performed a semantic search on th
 1. Generate exactly **{count}** NEW songs that perfectly fit the vibe.
 2. DO NOT include any songs from the "User's Matching Library (Context)".
 3. DO NOT include any songs from the "Rejected Songs to Avoid".
-4. Ensure the songs are real and exist on Spotify.
+4. Wildcard suggestions MUST be by artists similar to those in the "Artist Space" list above, or by the same artists. Do not default to mainstream Western artists if the group's taste is clearly in a different genre.
+5. Ensure the songs are real and exist on Spotify.
 
 RETURN ONLY A RAW JSON LIST.
 

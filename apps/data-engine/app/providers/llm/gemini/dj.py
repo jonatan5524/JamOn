@@ -21,18 +21,6 @@ class GeminiDJProvider:
     def __init__(self):
         self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-    def expand_query_hyde(self, event_description: str) -> str:
-        prompt = _load_prompt("hyde_prompt.txt").replace("{event_description}", event_description)
-        try:
-            response = self._client.models.generate_content(
-                model=settings.PLAYLIST_GENERATION_MODEL,
-                contents=prompt,
-            )
-            return response.text or event_description
-        except Exception as e:
-            logger.error(f"Gemini HyDE expansion failed: {e}")
-            return event_description
-
     @with_resilience
     def generate_playlist(
         self,
@@ -40,9 +28,12 @@ class GeminiDJProvider:
         context_songs: List[dict],
         count: int,
         rejected: List[str],
+        anchor_artists: List[str] = None,
     ) -> List[dict]:
         if rejected is None:
             rejected = []
+        if anchor_artists is None:
+            anchor_artists = []
         prompt_template = _load_prompt("playlist_generation_prompt.txt")
         context_str = json.dumps(
             [{k: v for k, v in s.items() if k in ("title", "artist", "vibe_tags", "energy_desc", "mood_desc")}
@@ -50,9 +41,11 @@ class GeminiDJProvider:
             indent=2,
         )
         rejected_str = json.dumps(rejected, indent=2) if rejected else "None"
+        anchor_str = ", ".join(anchor_artists) if anchor_artists else "Not specified"
         prompt = (
             prompt_template
             .replace("{event_description}", event_description)
+            .replace("{anchor_artist_list}", anchor_str)
             .replace("{context_str}", context_str)
             .replace("{rejected_str}", rejected_str)
             .replace("{count}", str(count))

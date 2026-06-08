@@ -6,12 +6,18 @@ class EmbeddingProvider(Protocol):
     provider_id: str
 
     def embed_document(self, text: str) -> List[float]: ...
+    def embed_documents(self, texts: List[str]) -> List[List[float]]: ...
     def embed_query(self, text: str) -> List[float]: ...
 
 
 @runtime_checkable
 class TaggingProvider(Protocol):
     def tag_songs(self, songs: List[dict]) -> List[dict]: ...
+
+
+@runtime_checkable
+class HyDEProvider(Protocol):
+    def expand_query(self, event_description: str) -> str: ...
 
 
 @runtime_checkable
@@ -22,9 +28,8 @@ class DJProvider(Protocol):
         context_songs: List[dict],
         count: int,
         rejected: List[str],
+        anchor_artists: List[str],
     ) -> List[dict]: ...
-
-    def expand_query_hyde(self, event_description: str) -> str: ...
 
 
 @runtime_checkable

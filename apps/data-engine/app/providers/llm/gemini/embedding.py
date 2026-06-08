@@ -34,6 +34,32 @@ class GeminiEmbeddingProvider:
             raise EmbeddingError(str(e)) from e
 
     @with_resilience
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        if not texts:
+            return []
+        logger.info(f"[gemini-embedding] batch embedding {len(texts)} documents")
+        try:
+            # Wrapping each text in types.Content gives one embedding per item.
+            # Passing raw strings gives a single aggregated embedding (gemini-embedding-2 behaviour).
+            contents = [
+                types.Content(parts=[types.Part.from_text(text=text)])
+                for text in texts
+            ]
+            response = self._client.models.embed_content(
+                model=settings.EMBEDDING_MODEL,
+                contents=contents,
+                config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
+            )
+            vectors = [e.values for e in response.embeddings]
+            logger.info(f"[gemini-embedding] got {len(vectors)} vectors (expected {len(texts)})")
+            return vectors
+        except Exception as e:
+            if isinstance(e, (errors.APIError, AIServiceUnavailableError)):
+                raise
+            logger.error(f"[gemini-embedding] embed_documents failed: {e}")
+            raise EmbeddingError(str(e)) from e
+
+    @with_resilience
     def embed_query(self, text: str) -> List[float]:
         try:
             response = self._client.models.embed_content(

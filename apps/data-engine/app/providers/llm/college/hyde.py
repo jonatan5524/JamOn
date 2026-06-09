@@ -21,11 +21,11 @@ class CollegeHyDEProvider:
                 timeout=30.0,
             ) as client:
                 response = client.post(
-                    f"{settings.COLLEGE_BASE_URL}/v1/chat/completions",
-                    json={"model": "gemma3:12b", "messages": [{"role": "user", "content": prompt}]},
+                    f"{settings.COLLEGE_BASE_URL}/api/generate",
+                    json={"model": "gemma3:12b", "prompt": prompt, "stream": False},
                 )
                 response.raise_for_status()
-                return response.json()["choices"][0]["message"]["content"]
+                return response.json()["response"]
         except Exception as e:
             logger.error(f"College HyDE expansion failed: {e}")
             return event_description

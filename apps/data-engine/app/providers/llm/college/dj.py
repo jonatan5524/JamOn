@@ -50,11 +50,18 @@ class CollegeDJProvider:
                 timeout=60.0,
             ) as client:
                 response = client.post(
-                    f"{settings.COLLEGE_BASE_URL}/v1/chat/completions",
-                    json={"model": "gemma3:12b", "messages": [{"role": "user", "content": prompt}]},
+                    f"{settings.COLLEGE_BASE_URL}/api/generate",
+                    json={"model": "gemma3:12b", "prompt": prompt, "format": "json", "stream": False},
                 )
                 response.raise_for_status()
-                return json.loads(response.json()["choices"][0]["message"]["content"])
+                parsed = json.loads(response.json()["response"])
+                if isinstance(parsed, list):
+                    return parsed
+                # model may wrap in {"playlist": [...]} or return a single song dict
+                for key in ("playlist", "songs", "tracks"):
+                    if key in parsed and isinstance(parsed[key], list):
+                        return parsed[key]
+                return [parsed]
         except Exception as e:
             logger.error(f"College generate_playlist failed: {e}")
             raise GenerationError(str(e)) from e

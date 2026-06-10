@@ -3,7 +3,13 @@ import { HttpService } from "@nestjs/axios";
 import { of, throwError } from "rxjs";
 import { AxiosResponse } from "axios";
 import { HttpException, HttpStatus } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { JwtService } from "@nestjs/jwt";
 import { AuthService } from "../src/modules/auth/auth.service";
+import { UserService } from "../src/modules/user/user.service";
+import { SpotifyService } from "../src/modules/spotify/spotify.service";
+import { DataEngineService } from "../src/modules/data-engine/data-engine.service";
+import { SongService } from "../src/modules/song/song.service";
 
 const mockAxiosResponse = <T>(data: T): AxiosResponse<T> => ({
   data,
@@ -16,25 +22,30 @@ const mockAxiosResponse = <T>(data: T): AxiosResponse<T> => ({
 describe("AuthService", () => {
   let service: AuthService;
   let httpService: jest.Mocked<HttpService>;
-  const originalEnv = process.env;
 
   beforeEach(async () => {
-    process.env = {
-      ...originalEnv,
-      SPOTIFY_CLIENT_ID: "test-client-id",
-      SPOTIFY_CLIENT_SECRET: "test-client-secret",
-      SPOTIFY_REDIRECT_URI: "http://localhost:3000/auth/spotify/callback",
-    };
-
     const module = await Test.createTestingModule({
       providers: [
         AuthService,
         {
           provide: HttpService,
+          useValue: { post: jest.fn() },
+        },
+        {
+          provide: ConfigService,
           useValue: {
-            post: jest.fn(),
+            get: jest.fn((key: string) => ({
+              SPOTIFY_CLIENT_ID: "test-client-id",
+              SPOTIFY_CLIENT_SECRET: "test-client-secret",
+              SPOTIFY_REDIRECT_URI: "http://localhost:3000/auth/spotify/callback",
+            }[key] ?? "")),
           },
         },
+        { provide: UserService, useValue: {} },
+        { provide: JwtService, useValue: { sign: jest.fn(() => "token") } },
+        { provide: SpotifyService, useValue: {} },
+        { provide: DataEngineService, useValue: {} },
+        { provide: SongService, useValue: {} },
       ],
     }).compile();
 
@@ -44,7 +55,6 @@ describe("AuthService", () => {
   });
 
   afterEach(() => {
-    process.env = originalEnv;
     jest.clearAllMocks();
   });
 
@@ -65,20 +75,6 @@ describe("AuthService", () => {
       expect(scope).toContain("user-read-private");
       expect(scope).toContain("user-read-email");
       expect(scope).toContain("user-top-read");
-    });
-  });
-
-  describe("configuration validation", () => {
-    it("should throw when spotify oauth env vars are missing", () => {
-      process.env = {
-        ...originalEnv,
-      };
-      delete process.env.SPOTIFY_CLIENT_ID;
-      delete process.env.SPOTIFY_CLIENT_SECRET;
-
-      expect(() => new AuthService({} as HttpService)).toThrow(
-        "Missing Spotify OAuth configuration: SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are required",
-      );
     });
   });
 

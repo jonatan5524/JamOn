@@ -1,0 +1,13 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    name: Pipeline not yet configured on main
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "github sucks and this pipeline is not yet configured on main"

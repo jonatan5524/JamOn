@@ -110,61 +110,47 @@ connections. Fix it:
 
 ---
 
-## GitHub Secrets to Configure
+## GitHub Secrets and Variables to Configure
 
-**Settings → Secrets and variables → Actions → New repository secret**
+Go to **Settings → Secrets and variables → Actions**.
 
-### Frontend (baked into the React bundle at build time)
-
-| Secret | Example value |
-|---|---|
-| `VITE_API_URL` | `https://yourdomain.com/api` |
-
-> This URL is compiled into the JavaScript bundle. It must be the **public** URL
-> that browsers will call. Since nginx serves both the SPA and the API under the
-> same domain, this is just your domain with `/api` appended.
-
-### Orchestrator / NestJS
+### Secrets tab — sensitive credentials only
 
 | Secret | Notes |
 |---|---|
-| `SPOTIFY_CLIENT_ID` | From Spotify Developer Dashboard |
 | `SPOTIFY_CLIENT_SECRET` | From Spotify Developer Dashboard |
-| `SPOTIFY_REDIRECT_URI` | e.g. `https://yourdomain.com/api/auth/spotify/callback` |
 | `JWT_SECRET` | Long random string (≥ 32 chars) |
-| `DB_PORT` | PostgreSQL port, typically `5432` |
-| `DB_USERNAME` | PostgreSQL user |
 | `DB_PASSWORD` | PostgreSQL password |
-| `DB_NAME` | PostgreSQL database name |
-| `API_URL` | e.g. `https://yourdomain.com/api` |
-| `CLIENT_URL` | e.g. `https://yourdomain.com` |
-
-### Data Engine — AI providers
-
-| Secret | Notes |
-|---|---|
 | `GEMINI_API_KEY` | Google AI Studio |
 | `NVIDIA_API_KEY` | NIM API key |
-| `GENIUS_ACCESS_TOKEN` | Genius lyrics API |
-| `LASTFM_API_KEY` | Last.fm API |
-| `COLLEGE_BASE_URL` | College LLM service base URL |
-| `COLLEGE_USERNAME` | College LLM service username |
+| `GENIUS_ACCESS_TOKEN` | Genius lyrics API token |
+| `LASTFM_API_KEY` | Last.fm API key |
 | `COLLEGE_PASSWORD` | College LLM service password |
 
-### Data Engine — provider selection
+> `GITHUB_TOKEN` is provided automatically — do **not** create it as a secret.
 
-| Secret | Example | Notes |
+### Variables tab — plain configuration
+
+| Variable | Example value | Notes |
 |---|---|---|
+| `VITE_API_URL` | `https://yourdomain.com/api` | Baked into the React bundle at build time. Must be the public URL browsers call. |
+| `API_URL` | `https://yourdomain.com/api` | Used by the orchestrator |
+| `CLIENT_URL` | `https://yourdomain.com` | Used for CORS config in NestJS |
+| `SPOTIFY_CLIENT_ID` | `abc123` | From Spotify Developer Dashboard |
+| `SPOTIFY_REDIRECT_URI` | `https://yourdomain.com/api/auth/spotify/callback` | |
+| `DB_PORT` | `5432` | PostgreSQL port |
+| `DB_USERNAME` | `jamon` | PostgreSQL user |
+| `DB_NAME` | `jamon` | PostgreSQL database name |
+| `COLLEGE_BASE_URL` | `http://llm.cs.colman.ac.il` | College LLM service base URL |
+| `COLLEGE_USERNAME` | `student123` | College LLM service username |
+| `NIM_BASE_URL` | `https://integrate.api.nvidia.com/v1` | |
+| `NIM_TAGGING_MODEL` | `meta/llama-3.3-70b-instruct` | |
+| `NIM_HYDE_MODEL` | `meta/llama-3.3-70b-instruct` | |
 | `EMBEDDING_PROVIDER` | `gemini` | `gemini`, `college`, or `nim` |
 | `TAGGING_PROVIDER` | `gemini` | same options |
 | `DJ_PROVIDER` | `college` | same options |
 | `HYDE_PROVIDER` | `nim` | same options |
 | `VECTOR_DB_PROVIDER` | `chroma` | Use `chroma` for now. Flip to `pgvector` when that mission ships — no other pipeline change needed. |
-| `NIM_BASE_URL` | `https://integrate.api.nvidia.com/v1` | |
-| `NIM_TAGGING_MODEL` | `meta/llama-3.3-70b-instruct` | |
-| `NIM_HYDE_MODEL` | `meta/llama-3.3-70b-instruct` | |
-
-> `GITHUB_TOKEN` is provided automatically — do **not** create it as a secret.
 
 ---
 

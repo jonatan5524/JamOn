@@ -45,7 +45,7 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/jamon-client:latest
           build-args: |
-            VITE_API_URL=${{ secrets.VITE_API_URL }}
+            VITE_API_URL=${{ vars.VITE_API_URL }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -76,31 +76,31 @@ jobs:
 
     env:
       # ── Orchestrator env ──────────────────────────────────────────────────
-      SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+      SPOTIFY_CLIENT_ID: ${{ vars.SPOTIFY_CLIENT_ID }}
       SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
-      SPOTIFY_REDIRECT_URI: ${{ secrets.SPOTIFY_REDIRECT_URI }}
+      SPOTIFY_REDIRECT_URI: ${{ vars.SPOTIFY_REDIRECT_URI }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
-      DB_PORT: ${{ secrets.DB_PORT }}
-      DB_USERNAME: ${{ secrets.DB_USERNAME }}
+      DB_PORT: ${{ vars.DB_PORT }}
+      DB_USERNAME: ${{ vars.DB_USERNAME }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-      DB_NAME: ${{ secrets.DB_NAME }}
-      API_URL: ${{ secrets.API_URL }}
-      CLIENT_URL: ${{ secrets.CLIENT_URL }}
+      DB_NAME: ${{ vars.DB_NAME }}
+      API_URL: ${{ vars.API_URL }}
+      CLIENT_URL: ${{ vars.CLIENT_URL }}
       # ── Data engine env ───────────────────────────────────────────────────
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
       GENIUS_ACCESS_TOKEN: ${{ secrets.GENIUS_ACCESS_TOKEN }}
-      EMBEDDING_PROVIDER: ${{ secrets.EMBEDDING_PROVIDER }}
-      TAGGING_PROVIDER: ${{ secrets.TAGGING_PROVIDER }}
-      DJ_PROVIDER: ${{ secrets.DJ_PROVIDER }}
-      HYDE_PROVIDER: ${{ secrets.HYDE_PROVIDER }}
-      VECTOR_DB_PROVIDER: ${{ secrets.VECTOR_DB_PROVIDER }}
-      COLLEGE_BASE_URL: ${{ secrets.COLLEGE_BASE_URL }}
-      COLLEGE_USERNAME: ${{ secrets.COLLEGE_USERNAME }}
+      EMBEDDING_PROVIDER: ${{ vars.EMBEDDING_PROVIDER }}
+      TAGGING_PROVIDER: ${{ vars.TAGGING_PROVIDER }}
+      DJ_PROVIDER: ${{ vars.DJ_PROVIDER }}
+      HYDE_PROVIDER: ${{ vars.HYDE_PROVIDER }}
+      VECTOR_DB_PROVIDER: ${{ vars.VECTOR_DB_PROVIDER }}
+      COLLEGE_BASE_URL: ${{ vars.COLLEGE_BASE_URL }}
+      COLLEGE_USERNAME: ${{ vars.COLLEGE_USERNAME }}
       COLLEGE_PASSWORD: ${{ secrets.COLLEGE_PASSWORD }}
-      NIM_BASE_URL: ${{ secrets.NIM_BASE_URL }}
-      NIM_TAGGING_MODEL: ${{ secrets.NIM_TAGGING_MODEL }}
-      NIM_HYDE_MODEL: ${{ secrets.NIM_HYDE_MODEL }}
+      NIM_BASE_URL: ${{ vars.NIM_BASE_URL }}
+      NIM_TAGGING_MODEL: ${{ vars.NIM_TAGGING_MODEL }}
+      NIM_HYDE_MODEL: ${{ vars.NIM_HYDE_MODEL }}
       LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
       GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
 

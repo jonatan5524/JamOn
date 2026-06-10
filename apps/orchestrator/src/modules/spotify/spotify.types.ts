@@ -42,3 +42,12 @@ export interface SpotifyTopTracksResponse {
   next: string | null;
   previous: string | null;
 }
+
+export interface SpotifyPlaylistTrack {
+  track: SpotifyTrack | null;
+}
+
+export interface SpotifyPlaylistTracksResponse {
+  items: SpotifyPlaylistTrack[];
+  next: string | null;
+}

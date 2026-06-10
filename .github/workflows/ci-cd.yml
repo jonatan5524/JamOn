@@ -1,0 +1,152 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+
+# Only one deploy at a time — a second push to main queues behind the first
+# so two runs never race on the single `colman` runner mid-deploy.
+concurrency:
+  group: ci-cd-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write   # allows GITHUB_TOKEN to push to ghcr.io
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── Client (React / nginx) ───────────────────────────────────────────
+      - name: Build & push client
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/client
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/jamon-client:latest
+          build-args: |
+            VITE_API_URL=${{ secrets.VITE_API_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── Orchestrator (NestJS) ────────────────────────────────────────────
+      - name: Build & push orchestrator
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/orchestrator
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/jamon-orchestrator:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── Data Engine (Python / FastAPI) ───────────────────────────────────
+      - name: Build & push data-engine
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/data-engine
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/jamon-data-engine:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to College Server
+    runs-on: [self-hosted, colman]
+    needs: build-and-push
+
+    env:
+      # ── Orchestrator env ──────────────────────────────────────────────────
+      SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+      SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+      SPOTIFY_REDIRECT_URI: ${{ secrets.SPOTIFY_REDIRECT_URI }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      DB_USERNAME: ${{ secrets.DB_USERNAME }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      DB_NAME: ${{ secrets.DB_NAME }}
+      API_URL: ${{ secrets.API_URL }}
+      CLIENT_URL: ${{ secrets.CLIENT_URL }}
+      # ── Data engine env ───────────────────────────────────────────────────
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      GENIUS_ACCESS_TOKEN: ${{ secrets.GENIUS_ACCESS_TOKEN }}
+      EMBEDDING_PROVIDER: ${{ secrets.EMBEDDING_PROVIDER }}
+      TAGGING_PROVIDER: ${{ secrets.TAGGING_PROVIDER }}
+      DJ_PROVIDER: ${{ secrets.DJ_PROVIDER }}
+      HYDE_PROVIDER: ${{ secrets.HYDE_PROVIDER }}
+      VECTOR_DB_PROVIDER: ${{ secrets.VECTOR_DB_PROVIDER }}
+      COLLEGE_BASE_URL: ${{ secrets.COLLEGE_BASE_URL }}
+      COLLEGE_USERNAME: ${{ secrets.COLLEGE_USERNAME }}
+      COLLEGE_PASSWORD: ${{ secrets.COLLEGE_PASSWORD }}
+      NIM_BASE_URL: ${{ secrets.NIM_BASE_URL }}
+      NIM_TAGGING_MODEL: ${{ secrets.NIM_TAGGING_MODEL }}
+      NIM_HYDE_MODEL: ${{ secrets.NIM_HYDE_MODEL }}
+      LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+      GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+
+    steps:
+      - name: Checkout (for docker-compose.yml)
+        uses: actions/checkout@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull latest images
+        run: |
+          docker pull ghcr.io/${{ github.repository_owner }}/jamon-client:latest
+          docker pull ghcr.io/${{ github.repository_owner }}/jamon-orchestrator:latest
+          docker pull ghcr.io/${{ github.repository_owner }}/jamon-data-engine:latest
+
+      - name: Deploy containers
+        run: docker compose up -d --remove-orphans
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for containers to report healthy..."
+          for service in jamon-client jamon-orchestrator jamon-data-engine; do
+            for i in $(seq 1 24); do
+              status=$(docker inspect --format='{{.State.Health.Status}}' "$service" 2>/dev/null || echo "missing")
+              echo "  $service → $status (attempt $i/24)"
+              if [ "$status" = "healthy" ]; then break; fi
+              if [ "$i" -eq 24 ]; then
+                echo "ERROR: $service did not become healthy within 120s"
+                docker logs "$service" --tail 50
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+          echo "All services healthy."
+
+      - name: Remove dangling and old images
+        run: |
+          docker image prune -f
+          docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' \
+            | grep -E 'jamon-(client|orchestrator|data-engine)' \
+            | grep -v ':latest' \
+            | awk '{print $2}' \
+            | xargs -r docker rmi -f || true

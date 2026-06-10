@@ -4,7 +4,6 @@ services:
     container_name: jamon-client
     restart: unless-stopped
     ports:
-      - "80:80"
       - "443:443"
     volumes:
       - /etc/ssl/jamon/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro

@@ -3,6 +3,7 @@ name: CI/CD
 on:
   push:
     branches: [main]
+  workflow_dispatch:  # allows manual trigger from any branch via GitHub UI
 
 # Only one deploy at a time — a second push to main queues behind the first
 # so two runs never race on the single `colman` runner mid-deploy.

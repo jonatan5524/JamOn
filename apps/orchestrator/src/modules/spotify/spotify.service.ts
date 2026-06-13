@@ -6,6 +6,7 @@ import {
   SimplifiedTrack,
   SpotifyPlaylist,
   SpotifyPlaylistResponse,
+  SpotifyPlaylistTracksResponse,
   SpotifySearchResponse,
   SpotifyTopTracksResponse,
 } from './spotify.types';
@@ -114,5 +115,21 @@ export class SpotifyService {
       `/playlists/${playlistId}/items`,
       { uris },
     );
+  };
+
+  getChartTracks = async (playlistId: string): Promise<SimplifiedTrack[]> => {
+    this.logger.log(`Fetching chart tracks for playlist ${playlistId}`);
+    const token = await this.getAppToken();
+    const data = await this.spotifyRequest<SpotifyPlaylistTracksResponse>(
+      token,
+      'get',
+      `/playlists/${playlistId}/tracks?limit=50`,
+    );
+    return data.items
+      .filter((item) => item.track !== null)
+      .map((item) => ({
+        title: item.track!.name,
+        artist: item.track!.artists[0]?.name || '',
+      }));
   };
 }

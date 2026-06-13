@@ -1,0 +1,61 @@
+services:
+  client:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/jamon-client:latest
+    container_name: jamon-client
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - /etc/ssl/jamon/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
+      - /etc/ssl/jamon/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
+    depends_on:
+      - orchestrator
+
+  orchestrator:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/jamon-orchestrator:latest
+    container_name: jamon-orchestrator
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - NODE_ENV=production
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
+      - SPOTIFY_REDIRECT_URI=${SPOTIFY_REDIRECT_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - DB_HOST=host.docker.internal
+      - DB_PORT=${DB_PORT}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - API_URL=${API_URL}
+      - CLIENT_URL=${CLIENT_URL}
+
+  data-engine:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/jamon-data-engine:latest
+    container_name: jamon-data-engine
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - GENIUS_ACCESS_TOKEN=${GENIUS_ACCESS_TOKEN}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER}
+      - TAGGING_PROVIDER=${TAGGING_PROVIDER}
+      - DJ_PROVIDER=${DJ_PROVIDER}
+      - HYDE_PROVIDER=${HYDE_PROVIDER}
+      - VECTOR_DB_PROVIDER=${VECTOR_DB_PROVIDER}
+      - DB_HOST=host.docker.internal
+      - DB_PORT=${DB_PORT}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - COLLEGE_BASE_URL=${COLLEGE_BASE_URL}
+      - COLLEGE_USERNAME=${COLLEGE_USERNAME}
+      - COLLEGE_PASSWORD=${COLLEGE_PASSWORD}
+      - NIM_BASE_URL=${NIM_BASE_URL}
+      - NIM_TAGGING_MODEL=${NIM_TAGGING_MODEL}
+      - NIM_HYDE_MODEL=${NIM_HYDE_MODEL}
+      - LASTFM_API_KEY=${LASTFM_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}

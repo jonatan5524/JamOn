@@ -42,6 +42,24 @@ interface BackendEvent {
   playlistId?: string | null;
   playlistUrl?: string | null;
   tracksAdded?: number | null;
+  statistics?: BackendEventStatistics;
+}
+
+interface BackendEventStatistics {
+  playlistMatchPercent: number;
+  tracks: {
+    id: string;
+    position: number;
+    title: string;
+    artist: string;
+    spotifyUrl?: string;
+    contributorIds: string[];
+  }[];
+  contributions: {
+    participantId: string;
+    participantName: string;
+    percent: number;
+  }[];
 }
 
 const PARTICIPANT_COLORS = [
@@ -80,6 +98,9 @@ const mapParticipant = (p: BackendParticipant): Participant => {
 export const getEvent = async (eventId: string): Promise<EventDetail> => {
   const raw = await apiFetch<BackendEvent>(`/events/${eventId}`);
   const participants = (raw.participants ?? []).map(mapParticipant);
+  const participantColorById = new Map(
+    participants.map((participant) => [participant.id, participant.colorHex]),
+  );
   return {
     id: String(raw.id),
     code: raw.code,
@@ -92,12 +113,29 @@ export const getEvent = async (eventId: string): Promise<EventDetail> => {
       ? {
           id: raw.playlistId,
           trackCount: raw.tracksAdded ?? 0,
-          durationMin: Math.round((raw.tracksAdded ?? 0) * 3.5),
+          durationMin: Math.round(
+            (raw.statistics?.tracks.length ?? raw.tracksAdded ?? 0) * 3.5,
+          ),
           spotifyUrl: raw.playlistUrl ?? "",
-          tracks: [],
+          tracks: (raw.statistics?.tracks ?? []).map((track) => ({
+            id: track.id,
+            position: track.position,
+            title: track.title,
+            artist: track.artist,
+            spotifyUrl: track.spotifyUrl,
+            contributorIds: track.contributorIds,
+          })),
         }
       : null,
-    contributions: [],
+    contributions: (raw.statistics?.contributions ?? []).map((row) => ({
+      participantId: row.participantId,
+      participantName: row.participantName,
+      percent: row.percent,
+      colorHex:
+        participantColorById.get(row.participantId) ??
+        colorForUser(row.participantId),
+    })),
+    playlistMatchPercent: raw.statistics?.playlistMatchPercent,
     viewerRole: raw.viewerRole ?? "participant",
   };
 };
@@ -170,6 +208,7 @@ export const generateEventPlaylist = async (
       tracksAdded: MOCK_EVENT_DETAIL.mix?.trackCount ?? 0,
       tracksNotFound: [],
       totalRequested: MOCK_EVENT_DETAIL.mix?.trackCount ?? 0,
+      tracks: [],
     });
   }
   return api

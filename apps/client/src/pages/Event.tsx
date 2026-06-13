@@ -83,6 +83,7 @@ const Event = () => {
                     />
                     <TasteContributionsCard
                       contributions={event?.contributions ?? []}
+                      playlistMatchPercent={event?.playlistMatchPercent}
                       isLoading={isLoading}
                     />
                   </>

@@ -33,6 +33,14 @@ export interface PlaylistResponse {
   tracksAdded: number;
   tracksNotFound: string[];
   totalRequested: number;
+  tracks: {
+    songId: string;
+    title: string;
+    artist: string;
+    spotifyUri: string;
+    spotifyUrl: string;
+    position: number;
+  }[];
 }
 
 export const PlaylistError = {

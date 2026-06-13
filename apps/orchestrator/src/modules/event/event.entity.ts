@@ -10,6 +10,7 @@ import {
 } from "typeorm";
 import { User } from "../user/user.entity";
 import { EventParticipant } from "./event-participant.entity";
+import { EventPlaylistTrack } from "./event-playlist-track.entity";
 
 @Entity("events")
 export class Event {
@@ -47,4 +48,7 @@ export class Event {
 
   @OneToMany(() => EventParticipant, (p) => p.event)
   participants!: EventParticipant[];
+
+  @OneToMany(() => EventPlaylistTrack, (track) => track.event)
+  playlistTracks!: EventPlaylistTrack[];
 }

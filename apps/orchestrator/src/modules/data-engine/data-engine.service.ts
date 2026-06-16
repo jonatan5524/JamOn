@@ -32,14 +32,13 @@ export class DataEngineService {
     }
   };
 
-  getRecommendations = async (eventDescription: string, topTracks: SimplifiedTrack[]): Promise<RecommendedSong[]> => {
-    this.logger.log(`Requesting recommendations for: "${eventDescription}"`);
+  getRecommendations = async (eventId: string): Promise<RecommendedSong[]> => {
+    this.logger.log(`Requesting recommendations for eventId=${eventId}`);
 
     try {
       const { data } = await firstValueFrom(
         this.httpService.post<RecommendedSong[]>('/recommend', {
-          event_description: eventDescription,
-          songs: topTracks
+          event_id: eventId,
         }),
       );
 

@@ -16,6 +16,7 @@ from app.services.rag import RagEngine
 from app.services import lyrics
 from app.services.enrichment import enrich_song
 from app.services.validator import validate_spotify_uri_via_nestjs
+from app.services.db import fetch_event_description, fetch_event_songs
 from app.workflows.playlist_generator import PlaylistGraphBuilder
 
 logger = logging.getLogger(__name__)
@@ -43,23 +44,29 @@ def _build_embedding_text(song: dict, lyrics: str) -> str:
 )
 async def recommend(http_request: Request, request: RecommendRequest):
     logger.info("===== /recommend START =====")
-    logger.info(f"Event description: '{request.event_description}'")
-    logger.info(f"Songs received: {len(request.songs)}")
-    for i, s in enumerate(request.songs[:5]):
-        logger.info(f"  Song[{i}]: {s.title} — {s.artist}")
-    if len(request.songs) > 5:
-        logger.info(f"  ... and {len(request.songs) - 5} more")
-
-    if not request.songs:
-        raise HTTPException(status_code=400, detail="No songs provided for context")
+    logger.info(f"Event ID: '{request.event_id}'")
 
     providers = http_request.app.state.providers
 
+    event_description, song_rows = await asyncio.gather(
+        asyncio.to_thread(fetch_event_description, request.event_id),
+        asyncio.to_thread(fetch_event_songs, request.event_id),
+    )
+    logger.info(f"Event description: '{event_description}'")
+    logger.info(f"Songs fetched from DB: {len(song_rows)}")
+    for i, s in enumerate(song_rows[:5]):
+        logger.info(f"  Song[{i}]: {s['title']} — {s['artist']}")
+    if len(song_rows) > 5:
+        logger.info(f"  ... and {len(song_rows) - 5} more")
+
+    if not song_rows:
+        raise HTTPException(status_code=400, detail="No songs found for this event's participants")
+
     raw_songs = [
-        {"track_id": f"{s.title}-{s.artist}",
-         "title": s.title,
-         "artist": s.artist}
-        for s in request.songs
+        {"track_id": f"{s['title']}-{s['artist']}",
+         "title": s["title"],
+         "artist": s["artist"]}
+        for s in song_rows
     ]
     logger.info(f"Enriching {len(raw_songs)} songs...")
     # enrich_song does blocking HTTP (Genius/Musixmatch/Last.fm). Run each in a worker
@@ -119,7 +126,7 @@ async def recommend(http_request: Request, request: RecommendRequest):
     logger.info("LangGraph workflow built — invoking...")
 
     try:
-        final_state = await workflow.ainvoke({"event_description": request.event_description})
+        final_state = await workflow.ainvoke({"event_description": event_description})
         playlist = final_state.get("final_playlist", [])
     except Exception as e:
         logger.error(f"Graph execution error: {e}")

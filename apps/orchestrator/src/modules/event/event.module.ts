@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { EventsService } from "./event.service";
 import { EventsController } from "./event.controller";
 import { TypeOrmModule } from "@nestjs/typeorm";
@@ -11,10 +11,11 @@ import { UserModule } from "../user/user.module";
 @Module({
   imports: [
     TypeOrmModule.forFeature([Event, EventParticipant]),
-    PlaylistModule,
+    forwardRef(() => PlaylistModule),
     UserModule,
   ],
   controllers: [EventsController],
   providers: [EventsService, EventRoleGuard],
+  exports: [EventsService],
 })
 export class EventModule {}

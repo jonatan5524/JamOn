@@ -8,3 +8,4 @@ uvicorn
 tenacity
 langgraph
 httpx
+psycopg2-binary

@@ -12,7 +12,7 @@ export class Song {
     @Column({ type: 'text', name: 'artist_name' })
     artistName!: string;
 
-    @Column({ type: 'text', nullable: true })
+    @Column({ type: 'vector', nullable: true })
     embedding!: string | null;
 
     @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })

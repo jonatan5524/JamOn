@@ -1,6 +1,5 @@
 openai
 google-genai
-chromadb
 python-dotenv
 dotenv
 fastapi

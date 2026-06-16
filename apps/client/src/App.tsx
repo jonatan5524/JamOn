@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import Event from "./pages/Event";
 import JoinByCode from "./pages/JoinByCode";
 import UserMenu from "@/components/layout/UserMenu";
+import AppErrorBoundary from "@/components/layout/ErrorBoundary";
 import { useSpotifyAuth } from "./hooks/use-spotify-auth";
 import MyEvents from "./pages/MyEvents";
 
@@ -33,41 +34,44 @@ const App = () => (
     <TooltipProvider>
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Home />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/events/:eventId"
-            element={
-              <ProtectedRoute>
-                <Event />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/join/:code"
-            element={
-              <ProtectedRoute>
-                <JoinByCode />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-          <Route
-            path='/my-events'
-            element={
-              <ProtectedRoute>
-                <MyEvents />
-              </ProtectedRoute>
-            } />
-        </Routes>
+        <AppErrorBoundary>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Home />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/events/:eventId"
+              element={
+                <ProtectedRoute>
+                  <Event />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/join/:code"
+              element={
+                <ProtectedRoute>
+                  <JoinByCode />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+            <Route
+              path="/my-events"
+              element={
+                <ProtectedRoute>
+                  <MyEvents />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </AppErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

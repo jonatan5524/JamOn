@@ -10,6 +10,8 @@ import {
 } from "typeorm";
 import { User } from "../user/user.entity";
 import { EventParticipant } from "./event-participant.entity";
+import { EventPlaylistTrack } from "./event-playlist-track.entity";
+import type { EventStatistics } from "./event-statistics.types";
 
 @Entity("events")
 export class Event {
@@ -45,6 +47,12 @@ export class Event {
   @Column({ type: "int", nullable: true, name: "tracks_added" })
   tracksAdded?: number;
 
+  @Column({ type: "jsonb", nullable: true })
+  statistics?: EventStatistics | null;
+
   @OneToMany(() => EventParticipant, (p) => p.event)
   participants!: EventParticipant[];
+
+  @OneToMany(() => EventPlaylistTrack, (track) => track.event)
+  playlistTracks!: EventPlaylistTrack[];
 }

@@ -12,6 +12,9 @@ export class Song {
     @Column({ type: 'text', name: 'artist_name' })
     artistName!: string;
 
+    @Column({ type: 'text', name: 'spotify_uri', nullable: true })
+    spotifyUri!: string | null;
+
     @Column({ type: 'vector', nullable: true })
     embedding!: string | null;
 

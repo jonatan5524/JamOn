@@ -8,6 +8,7 @@ import {
   SpotifyPlaylistResponse,
   SpotifyPlaylistTracksResponse,
   SpotifySearchResponse,
+  SpotifyTrackMatch,
   SpotifyTopTracksResponse,
 } from './spotify.types';
 
@@ -71,7 +72,7 @@ export class SpotifyService {
     }));
   };
 
-  searchTrack = async (accessToken: string, title: string, artist: string): Promise<string | null> => {
+  searchTrackDetails = async (accessToken: string, title: string, artist: string): Promise<SpotifyTrackMatch | null> => {
     this.logger.log(`Searching: "${title}" by ${artist}`);
     const query = encodeURIComponent(`track:${title} artist:${artist}`);
     const data = await this.spotifyRequest<SpotifySearchResponse>(
@@ -84,7 +85,19 @@ export class SpotifyService {
       this.logger.warn(`Track not found: "${title}" by ${artist}`);
       return null;
     }
-    return items[0].uri;
+    const track = items[0];
+    return {
+      id: track.id,
+      uri: track.uri,
+      title: track.name,
+      artist: track.artists[0]?.name || artist,
+      url: track.external_urls?.spotify ?? `https://open.spotify.com/track/${track.id}`,
+    };
+  };
+
+  searchTrack = async (accessToken: string, title: string, artist: string): Promise<string | null> => {
+    const match = await this.searchTrackDetails(accessToken, title, artist);
+    return match?.uri ?? null;
   };
 
 

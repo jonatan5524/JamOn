@@ -39,6 +39,7 @@ describe('PlaylistController', () => {
       tracksAdded: 18,
       tracksNotFound: ['Song X by Artist Y'],
       totalRequested: 20,
+      tracks: [],
     });
 
     const response = await request(app.getHttpServer())

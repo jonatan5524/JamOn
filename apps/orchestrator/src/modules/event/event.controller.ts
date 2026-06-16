@@ -157,38 +157,8 @@ export class EventsController {
       this.logger.error("[generate-playlist] No userId in JWT");
       throw new UnauthorizedException("User ID not found in token");
     }
-    this.logger.log(`[generate-playlist] userId=${userId}`);
-
-    const event = await this.eventsService.findById(id, userId);
-    this.logger.log(
-      `[generate-playlist] Event found: title="${event.title}", context="${event.context}"`,
-    );
-
-    const user = await this.userService.findByIdWithSpotifyToken(userId);
-    this.logger.log(
-      `[generate-playlist] Spotify token present: ${!!user?.spotifyAccessToken}`,
-    );
-    if (!user?.spotifyAccessToken) {
-      this.logger.error("[generate-playlist] No Spotify access token for user");
-      throw new HttpException(
-        {
-          error: PlaylistError.SPOTIFY_AUTH_EXPIRED,
-          message:
-            "Spotify access token not found. Please re-authenticate with Spotify.",
-        },
-        HttpStatus.UNAUTHORIZED,
-      );
-    }
-
-    this.logger.log(
-      `[generate-playlist] Calling PlaylistService with description="${event.context || event.title}"`,
-    );
-    const result = await this.playlistService.generatePlaylist(
-      user.spotifyAccessToken,
-      {
-        eventDescription: event.context || event.title,
-      },
-    );
+    
+    const result = await this.playlistService.generatePlaylist(id,userId);
     this.logger.log(
       `[generate-playlist] PlaylistService returned: playlistId=${result.playlistId}, tracksAdded=${result.tracksAdded}`,
     );

@@ -32,5 +32,11 @@ class Settings:
         self.HYDE_PROVIDER: str = os.environ.get("HYDE_PROVIDER", self.DJ_PROVIDER)
         # Song enrichment API keys
         self.LASTFM_API_KEY: str = os.environ.get("LASTFM_API_KEY", "")
+        # Shared PostgreSQL database (same instance as the orchestrator)
+        self.DB_HOST: str = os.environ.get("DB_HOST", "localhost")
+        self.DB_PORT: str = os.environ.get("DB_PORT", "5432")
+        self.DB_NAME: str = os.environ.get("DB_NAME", "")
+        self.DB_USERNAME: str = os.environ.get("DB_USERNAME", "")
+        self.DB_PASSWORD: str = os.environ.get("DB_PASSWORD", "")
 
 settings = Settings()

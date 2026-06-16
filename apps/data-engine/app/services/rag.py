@@ -19,16 +19,10 @@ class RagEngine:
         self._dj = dj
         self._hyde = hyde
 
-    def add_songs(
-        self,
-        songs_with_features: List[Dict[str, Any]],
-        lyrics_map: Dict[str, str],
-    ) -> None:
-        self._store.add_songs(songs_with_features, lyrics_map, self._embedder)
-
     async def query_songs(
         self,
         event_description: str,
+        event_id: str,
         n_results: int = 5,
         max_distance: float = 0.7,
     ) -> List[Dict[str, Any]]:
@@ -44,6 +38,7 @@ class RagEngine:
             self._embedder,
             n_results,
             max_distance,
+            event_id,
         )
         logger.info(f"[rag] vector store returned {len(results)} songs")
         return results

@@ -32,3 +32,13 @@ def test_build_embedding_text_fallback_handles_none_lyric_mood_tags():
     text = build_embedding_text({"energy_desc": "high", "lyric_mood_tags": None})
     assert isinstance(text, str)
     assert "Lyrics" not in text
+
+
+def test_tagging_prompt_requests_lyric_mood_tags():
+    import os
+    path = os.path.join(
+        os.path.dirname(__file__), "..", "prompts", "audio_features_prompt.txt"
+    )
+    with open(path) as f:
+        content = f.read()
+    assert "lyric_mood_tags" in content

@@ -15,6 +15,7 @@ Mentally estimate the following Spotify Audio Features for each track and use th
 5. **Acousticness:** Is it acoustic/organic (High) or electronic/synthesized (Low)?
 6. **Instrumentalness:** Is it instrumental (High) or vocal-heavy (Low)?
 7. **Liveness:** Does it sound like a live performance?
+8. **Lyrical Mood:** From the `lyrics_snippet` (if present), distill 2-3 short mood/theme labels describing how the words *feel* (e.g. "wistful", "defiant", "nostalgic"). If no lyrics are present, infer from the artist/title. Do NOT copy raw lyric phrases.
 
 **Input Data:**
 {songs_list}
@@ -36,8 +37,14 @@ Use whichever signals are present. If a field is null or empty, rely on your mus
     // Example: ["High Energy", "Sad", "Fast", "Electronic"]
     "vibe_tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
 
-    // 2. The Master String for Vector Embedding
-    // SYNTAX: "A [Energy/Tempo] [Genre] song that is [Danceability] and [Acousticness]. The mood is [Valence]. [Instrumentalness/Liveness notes]."
-    "embedding_text": "A high-energy, fast-paced Pop song that is perfect for dancing and features electronic production. The mood is cheerful and euphoric. Features heavy vocals."
+    // 2. Lyrical mood labels (2-3 words distilled from the lyrics — feel, not words)
+    // Example: ["wistful", "nostalgic"]
+    "lyric_mood_tags": ["mood1", "mood2"],
+
+    // 3. The Master String for Vector Embedding.
+    // Describe the VIBE only. Incorporate the lyric_mood_tags as part of the mood.
+    // Do NOT include raw lyric phrases — only the distilled feel.
+    // SYNTAX: "A [Energy/Tempo] [Genre] song that is [Danceability] and [Acousticness]. The mood is [Valence], [lyric mood labels]. [Instrumentalness/Liveness notes]."
+    "embedding_text": "A high-energy, fast-paced Pop song that is perfect for dancing and features electronic production. The mood is cheerful and euphoric, defiant and triumphant. Features heavy vocals."
   }
 ]

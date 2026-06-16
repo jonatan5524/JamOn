@@ -31,7 +31,12 @@ class PlaylistGraphBuilder:
         logger.info(f"Starting initial fetch for event: {state.event_description}")
         retrieved = await self.db_fetcher(state.event_description)
 
-        # Only songs that STRONGLY match the vibe become the library spine.
+        # Rank by vibe fit (closest first). The embedding model packs distances
+        # into a narrow band, so the *relative* order is the reliable signal —
+        # don't trust the store's return order.
+        retrieved = sorted(retrieved, key=lambda s: s.get("distance", 1.0))
+
+        # Only songs that STRONGLY match the vibe are eligible for the spine.
         strong_songs = [
             s for s in retrieved
             if s.get("distance", 1.0) <= self.strong_match_distance
@@ -55,21 +60,29 @@ class PlaylistGraphBuilder:
             self.min_wildcards,
             self.target_playlist_size - len(strong_songs),
         )
+
+        # Cap the spine to the closest (size - wildcards) songs. Even when every
+        # song clears the absolute strong-match gate, only the best-fitting ones
+        # earn a seat — the rest are the worst-vibe tail and are dropped so the
+        # final playlist never overflows target_playlist_size.
+        spine_size = max(0, self.target_playlist_size - target_wildcards)
+        spine_songs = strong_songs[:spine_size]
         logger.info(
             f"Dynamic wildcard target: {target_wildcards} "
-            f"(playlist_size={self.target_playlist_size}, strong={len(strong_songs)})"
+            f"(playlist_size={self.target_playlist_size}, strong={len(strong_songs)}, "
+            f"spine={len(spine_songs)})"
         )
 
         candidate_wildcards = await self.llm_generator(
             state.event_description,
             target_wildcards,
             [],
-            strong_songs,
+            spine_songs,
             anchor_artists,
         )
 
         return {
-            "db_songs": strong_songs,
+            "db_songs": spine_songs,
             "anchor_artists": anchor_artists,
             "candidate_wildcards": candidate_wildcards,
             "attempts": 1,
@@ -142,7 +155,13 @@ class PlaylistGraphBuilder:
             if key not in seen:
                 seen.add(key)
                 deduped.append(song)
-                
+
+        # Safety net: never hand back more than the target. db_songs are already
+        # the closest-by-distance spine and come first, so any overflow trimmed
+        # here is the weakest tail.
+        if len(deduped) > self.target_playlist_size:
+            deduped = deduped[:self.target_playlist_size]
+
         random.shuffle(deduped)
 
         library_count = sum(1 for s in deduped if s.get("source") != "new_suggestion")

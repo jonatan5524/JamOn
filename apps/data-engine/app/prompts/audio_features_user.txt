@@ -20,6 +20,13 @@ Each song entry may include:
 
 Use whichever signals are present. If a field is null or empty, rely on your musicological knowledge of the artist and title.
 
+**How to write `embedding_text`:**
+This string is embedded and compared against event-vibe queries, so it must maximize *vibe contrast* between songs — not read like a uniform template.
+- **Lead with the most discriminating attributes:** start with energy level and mood/valence, then tempo, then danceability/acousticness, then genre. The first words carry the most weight.
+- Be specific and concrete ("frantic, aggressive energy"; "sparse, melancholic and intimate") rather than generic ("a good song with nice energy").
+- Do NOT open every entry with the same boilerplate stem (e.g. "A high-energy, fast-paced X song that..."). Vary the wording so two different-feeling songs produce clearly different text.
+- Keep it to 1-2 sentences focused purely on how the song *feels and sounds*. Do NOT include the title, artist, or any lyric phrases.
+
 **Required Output Schema (JSON):**
 [
   {
@@ -28,7 +35,7 @@ Use whichever signals are present. If a field is null or empty, rely on your mus
     "artist": "Artist Name",
     "vibe_tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
     "lyric_mood_tags": ["mood1", "mood2"],
-    "embedding_text": "A high-energy, fast-paced Pop song that is perfect for dancing and features electronic production. The mood is cheerful and euphoric, defiant and triumphant. Features heavy vocals."
+    "embedding_text": "Frantic, high-energy and aggressive, with a defiant, triumphant mood. Fast-paced and driving, built for hype rather than dancing. Hard-hitting electronic hip-hop with dense, forceful vocals."
   }
 ]
 

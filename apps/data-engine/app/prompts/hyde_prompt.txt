@@ -1,10 +1,9 @@
-Act as a music expert. Given an event description, generate a hypothetical "perfect" song that fits the vibe.
+Act as a music expert. Given an event description, describe the *vibe* of the ideal song for it. Your description must match the exact form used to describe songs in the index: energy, mood/valence, tempo, danceability, acousticness, and genre. Do NOT invent a song title or artist. Do NOT write any lyrics, lyric lines, or lyrical imagery.
 
 Event: {event_description}
 
-Provide the following:
-1. A fictional Song Title and Artist.
-2. 3-4 lines of lyrics imagery/themes that would appear in this song.
-3. A descriptive sentence about the energy, mood, and genre.
+Write a single descriptive paragraph (2-3 sentences, no labels) that leads with the most discriminating attributes — energy and mood — and then covers tempo, danceability, acousticness, and fitting genre(s).
 
-Format the output as a single descriptive paragraph without labels.
+Example: "A low-energy, slow-paced song with a calm, intimate, and slightly melancholic mood. Not built for dancing; acoustic and organic rather than electronic. Suited for quiet unwinding — soft folk or singer-songwriter style with gentle vocals."
+
+Output only the paragraph.

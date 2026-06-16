@@ -17,7 +17,7 @@ export class PlaylistService {
     private readonly dataEngineService: DataEngineService,
     private readonly userService: UserService,
     private readonly eventsService: EventsService,
-  ) {}
+  ) { }
 
   async generatePlaylist(
     eventId: string,
@@ -48,8 +48,8 @@ export class PlaylistService {
     const resolvedUris: string[] = [];
     const notFound: string[] = [];
 
-    const {spotifyAccessToken} = await this.userService.findById(userId) || {spotifyAccessToken: null};
-    
+    const { spotifyAccessToken } = await this.userService.findById(userId) || { spotifyAccessToken: null };
+
     if (!spotifyAccessToken) {
       throw new HttpException(
         {
@@ -98,7 +98,7 @@ export class PlaylistService {
 
     // 3. Create the playlist
 
-    const {title, context} = await this.eventsService.findById(eventId, userId);
+    const { title, context } = await this.eventsService.findById(eventId, userId);
 
     const playlistName = title;
     const isPublic = true;

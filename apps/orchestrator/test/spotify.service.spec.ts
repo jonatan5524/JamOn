@@ -1,8 +1,10 @@
 import { Test } from '@nestjs/testing';
 import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
 import { of, throwError } from 'rxjs';
 import { AxiosResponse } from 'axios';
 import { SpotifyService } from '../src/modules/spotify/spotify.service';
+import { ConfigService } from '@nestjs/config';
 
 const mockAxiosResponse = <T>(data: T): AxiosResponse<T> => ({
   data,
@@ -26,6 +28,15 @@ describe('SpotifyService', () => {
             request: jest.fn(),
           },
         },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) => ({
+              SPOTIFY_CLIENT_ID: 'test-client-id',
+              SPOTIFY_CLIENT_SECRET: 'test-client-secret',
+            }[key] ?? '')),
+          },
+        },
       ],
     }).compile();
 
@@ -37,7 +48,17 @@ describe('SpotifyService', () => {
   describe('searchTrack', () => {
     it('should return track URI when found', async () => {
       httpService.request.mockReturnValue(of(
-        mockAxiosResponse({ tracks: { items: [{ uri: 'spotify:track:abc123', name: 'Test Song' }] } }),
+        mockAxiosResponse({
+          tracks: {
+            items: [{
+              id: 'abc123',
+              uri: 'spotify:track:abc123',
+              name: 'Test Song',
+              artists: [{ id: 'artist1', name: 'Test Artist' }],
+              external_urls: { spotify: 'https://open.spotify.com/track/abc123' },
+            }],
+          },
+        }),
       ));
 
       const result = await service.searchTrack('token', 'Test Song', 'Test Artist');

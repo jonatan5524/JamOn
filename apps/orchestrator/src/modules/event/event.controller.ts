@@ -168,6 +168,7 @@ export class EventsController {
       result.playlistId,
       result.playlistUrl,
       result.tracksAdded,
+      result.tracks,
     );
 
     return result;

@@ -8,6 +8,9 @@ import { SimplifiedTrack } from '../spotify/spotify.types';
 
 const PG_UNIQUE_VIOLATION = '23505';
 
+const songKey = (name: string, artistName: string): string =>
+    `${name.trim().toLowerCase()}::${artistName.trim().toLowerCase()}`;
+
 @Injectable()
 export class SongService {
     constructor(
@@ -25,7 +28,11 @@ export class SongService {
         if (tracks.length === 0) return [];
 
         const newSongs = tracks.map((t) =>
-            this.songRepository.create({ name: t.title, artistName: t.artist }),
+            this.songRepository.create({
+                name: t.title,
+                artistName: t.artist,
+                spotifyUri: t.spotifyUri ?? null,
+            }),
         );
 
         await this.songRepository
@@ -36,7 +43,18 @@ export class SongService {
             .orIgnore()
             .execute();
 
-        return this.songRepository
+        await Promise.all(
+            tracks
+                .filter((track) => track.spotifyUri)
+                .map((track) =>
+                    this.songRepository.update(
+                        { name: track.title, artistName: track.artist },
+                        { spotifyUri: track.spotifyUri },
+                    ),
+                ),
+        );
+
+        const rows = await this.songRepository
             .createQueryBuilder('song')
             .where(new Brackets((qb) => {
                 tracks.forEach((t, i) => {
@@ -47,6 +65,13 @@ export class SongService {
                 });
             }))
             .getMany();
+
+        const byKey = new Map(
+            rows.map((song) => [songKey(song.name, song.artistName), song]),
+        );
+        return tracks
+            .map((track) => byKey.get(songKey(track.title, track.artist)))
+            .filter((song): song is Song => Boolean(song));
     }
 
     /**

@@ -1,12 +1,16 @@
 import { Injectable, Logger, HttpException, HttpStatus } from "@nestjs/common";
 import { SpotifyService } from "../spotify/spotify.service";
 import { DataEngineService } from "../data-engine/data-engine.service";
+import { SongService } from "../song/song.service";
+import { CreatePlaylistDto } from "./dto/create-playlist.dto";
 import {
   PlaylistResponseDto,
   PlaylistError,
+  PlaylistTrackResultDto,
 } from "./dto/playlist-response.dto";
 import { UserService } from "../user/user.service";
 import { EventsService } from "../event/event.service";
+import { SpotifyTrackMatch } from "../spotify/spotify.types";
 
 @Injectable()
 export class PlaylistService {
@@ -17,7 +21,8 @@ export class PlaylistService {
     private readonly dataEngineService: DataEngineService,
     private readonly userService: UserService,
     private readonly eventsService: EventsService,
-  ) { }
+    private readonly songService: SongService,
+  ) {}
 
   async generatePlaylist(
     eventId: string,
@@ -45,10 +50,10 @@ export class PlaylistService {
     }
 
     // 2. Resolve each song to a Spotify URI (concurrency limit of 5)
-    const resolvedUris: string[] = [];
+    const resolvedTracks: SpotifyTrackMatch[] = [];
     const notFound: string[] = [];
 
-    const { spotifyAccessToken } = await this.userService.findById(userId) || { spotifyAccessToken: null };
+    const { spotifyAccessToken } = await this.userService.findByIdWithSpotifyToken(userId) || { spotifyAccessToken: null };
 
     if (!spotifyAccessToken) {
       throw new HttpException(
@@ -68,25 +73,25 @@ export class PlaylistService {
     for (const chunk of chunks) {
       const results = await Promise.all(
         chunk.map(async (song) => {
-          const uri = await this.spotifyService.searchTrack(
+          const track = await this.spotifyService.searchTrackDetails(
             spotifyAccessToken,
             song.title,
             song.artist,
           );
-          return { song, uri };
+          return { song, track };
         }),
       );
 
-      for (const { song, uri } of results) {
-        if (uri) {
-          resolvedUris.push(uri);
+      for (const { song, track } of results) {
+        if (track) {
+          resolvedTracks.push(track);
         } else {
           notFound.push(`${song.title} by ${song.artist}`);
         }
       }
     }
 
-    if (resolvedUris.length === 0) {
+    if (resolvedTracks.length === 0) {
       throw new HttpException(
         {
           error: PlaylistError.NO_TRACKS_RESOLVED,
@@ -95,6 +100,43 @@ export class PlaylistService {
         HttpStatus.UNPROCESSABLE_ENTITY,
       );
     }
+
+    const savedSongs = await this.songService.upsertSongsFromTracks(
+      resolvedTracks.map((track) => ({
+        title: track.title,
+        artist: track.artist,
+        spotifyUri: track.uri,
+        spotifyUrl: track.url,
+      })),
+    );
+
+    const unembedded = savedSongs.filter((song) => !song.embedding);
+    if (unembedded.length > 0) {
+      this.logger.log(
+        `[generatePlaylist] Sending ${unembedded.length} resolved track(s) for embedding`,
+      );
+      const dtos = await this.dataEngineService.ingestBatch(
+        unembedded.map((song) => ({
+          title: song.name,
+          artist: song.artistName,
+        })),
+      );
+      await this.songService.updateEmbeddings(dtos);
+    }
+
+    const playlistTracks: PlaylistTrackResultDto[] = resolvedTracks.map(
+      (track, index) => {
+        const song = savedSongs[index];
+        return {
+          songId: song.id,
+          title: song.name,
+          artist: song.artistName,
+          spotifyUri: track.uri,
+          spotifyUrl: track.url,
+          position: index + 1,
+        };
+      },
+    );
 
     // 3. Create the playlist
 
@@ -115,23 +157,24 @@ export class PlaylistService {
 
     // 4. Add tracks
     this.logger.log(
-      `[generatePlaylist] Adding ${resolvedUris.length} tracks to playlist ${playlist.id}`,
+      `[generatePlaylist] Adding ${resolvedTracks.length} tracks to playlist ${playlist.id}`,
     );
     await this.spotifyService.addTracksToPlaylist(
       spotifyAccessToken,
       playlist.id,
-      resolvedUris,
+      resolvedTracks.map((track) => track.uri),
     );
 
     this.logger.log(
-      `[generatePlaylist] DONE — playlistId=${playlist.id}, url=${playlist.url}, added=${resolvedUris.length}, notFound=${notFound.length}`,
+      `[generatePlaylist] DONE — playlistId=${playlist.id}, url=${playlist.url}, added=${resolvedTracks.length}, notFound=${notFound.length}`,
     );
     return {
       playlistId: playlist.id,
       playlistUrl: playlist.url,
-      tracksAdded: resolvedUris.length,
+      tracksAdded: resolvedTracks.length,
       tracksNotFound: notFound,
       totalRequested: songs.length,
+      tracks: playlistTracks,
     };
   }
 }

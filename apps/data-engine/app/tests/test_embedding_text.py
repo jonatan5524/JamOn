@@ -37,7 +37,7 @@ def test_build_embedding_text_fallback_handles_none_lyric_mood_tags():
 def test_tagging_prompt_requests_lyric_mood_tags():
     import os
     path = os.path.join(
-        os.path.dirname(__file__), "..", "prompts", "audio_features_prompt.txt"
+        os.path.dirname(__file__), "..", "prompts", "audio_features_user.txt"
     )
     with open(path) as f:
         content = f.read()

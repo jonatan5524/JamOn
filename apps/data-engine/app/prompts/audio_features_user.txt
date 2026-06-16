@@ -1,9 +1,3 @@
-SYSTEM INSTRUCTION:
-You are an expert musicologist and data scientist. Your task is to generate rich semantic metadata for a Vector Search Engine.
-
-You must analyze each song based on **Spotify's official Audio Features definitions**, but instead of returning numbers, you must synthesize them into a descriptive "Embedding String."
-
-USER PROMPT:
 I have a list of songs. For each song, generate a JSON object containing descriptive tags and a unified "embedding text."
 
 **Instructions for Analysis:**
@@ -28,23 +22,14 @@ Use whichever signals are present. If a field is null or empty, rely on your mus
 
 **Required Output Schema (JSON):**
 [
-  {
-    "id": 1, // Matches input index
-    "title": "Song Name",
-    "artist": "Artist Name",
-    
-    // 1. High-level descriptive tags (for filtering)
-    // Example: ["High Energy", "Sad", "Fast", "Electronic"]
-    "vibe_tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
-
-    // 2. Lyrical mood labels (2-3 words distilled from the lyrics — feel, not words)
-    // Example: ["wistful", "nostalgic"]
-    "lyric_mood_tags": ["mood1", "mood2"],
-
-    // 3. The Master String for Vector Embedding.
-    // Describe the VIBE only. Incorporate the lyric_mood_tags as part of the mood.
-    // Do NOT include raw lyric phrases — only the distilled feel.
-    // SYNTAX: "A [Energy/Tempo] [Genre] song that is [Danceability] and [Acousticness]. The mood is [Valence], [lyric mood labels]. [Instrumentalness/Liveness notes]."
-    "embedding_text": "A high-energy, fast-paced Pop song that is perfect for dancing and features electronic production. The mood is cheerful and euphoric, defiant and triumphant. Features heavy vocals."
-  }
+  {
+    "id": 1,
+    "title": "Song Name",
+    "artist": "Artist Name",
+    "vibe_tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
+    "lyric_mood_tags": ["mood1", "mood2"],
+    "embedding_text": "A high-energy, fast-paced Pop song that is perfect for dancing and features electronic production. The mood is cheerful and euphoric, defiant and triumphant. Features heavy vocals."
+  }
 ]
+
+Return ONLY the JSON array above filled with real data for the input songs. No explanations, no code, no markdown prose — just the JSON array.

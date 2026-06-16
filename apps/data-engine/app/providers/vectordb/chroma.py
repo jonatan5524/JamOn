@@ -12,7 +12,9 @@ class ChromaVectorStore:
     def __init__(self, collection_name: str):
         self.collection_name = collection_name
         self._client = chromadb.Client()
-        self._collection = self._client.create_collection(name=collection_name)
+        self._collection = self._client.create_collection(
+            name=collection_name, metadata={"hnsw:space": "cosine"}
+        )
         try:
             self._expected_dims = int(collection_name.rsplit("_", 1)[-1])
         except ValueError:
@@ -128,4 +130,7 @@ class ChromaVectorStore:
                 f"| cosine_dist={distance:.4f}"
             )
 
-        return filtered if filtered else retrieved
+        # No fallback: if nothing clears max_distance, return [] so the caller
+        # can treat a weak pool as the trigger for vibe-carrying generation,
+        # rather than silently surfacing mismatched library songs.
+        return filtered

@@ -23,6 +23,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _library_anchor_artists(songs) -> List[str]:
+    """Deduplicated artist list from the full participant library. Used to
+    anchor wildcard generation to the group's taste even when no library song
+    matches the requested vibe."""
+    return list({s.artist for s in songs if s.artist})
+
+
 @router.post(
     "/recommend",
     response_model=List[RecommendedSong],
@@ -90,7 +97,8 @@ async def recommend(http_request: Request, request: RecommendRequest):
     logger.info("RAG indexing complete")
 
     async def db_fetch_wrapper(query: str):
-        return await rag.query_songs(query, n_results=20)
+        # Retrieve a wide candidate set; the graph keeps only strong matches.
+        return await rag.query_songs(query, n_results=50)
 
     async def llm_gen_wrapper(prompt: str, count: int, rejected: List[str], context: List[dict], anchor_artists: List[str]):
         return await asyncio.to_thread(
@@ -101,14 +109,19 @@ async def recommend(http_request: Request, request: RecommendRequest):
         llm_generator=llm_gen_wrapper,
         db_fetcher=db_fetch_wrapper,
         uri_validator=validate_spotify_uri_via_nestjs,
-        target_wildcards=5,
+        target_playlist_size=20,
+        min_wildcards=3,
+        strong_match_distance=0.4,
         max_attempts=3,
     )
     workflow = builder.build()
     logger.info("LangGraph workflow built — invoking...")
 
     try:
-        final_state = await workflow.ainvoke({"event_description": request.event_description})
+        final_state = await workflow.ainvoke({
+            "event_description": request.event_description,
+            "anchor_artists": _library_anchor_artists(request.songs),
+        })
         playlist = final_state.get("final_playlist", [])
     except Exception as e:
         logger.error(f"Graph execution error: {e}")

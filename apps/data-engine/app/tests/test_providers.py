@@ -867,7 +867,6 @@ async def test_playlist_graph_builder_passes_anchor_artists_to_llm():
         llm_generator=fake_llm_gen,
         db_fetcher=fake_db_fetch,
         uri_validator=fake_validator,
-        target_wildcards=1,
         max_attempts=1,
     )
     workflow = builder.build()
@@ -954,3 +953,14 @@ async def test_ingest_batch_enriches_before_tagging_and_batch_embeds():
         assert len(body) == 2
         assert body[0]["name"] == "Song A"
         assert body[0]["embedding"] == [0.1] * 10
+
+
+def test_library_anchor_artists_dedupes_and_skips_empty():
+    from app.api.endpoints import _library_anchor_artists
+
+    class S:
+        def __init__(self, artist):
+            self.artist = artist
+
+    result = _library_anchor_artists([S("Eminem"), S("Eminem"), S("Drake"), S("")])
+    assert sorted(result) == ["Drake", "Eminem"]

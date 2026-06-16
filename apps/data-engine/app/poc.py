@@ -127,7 +127,7 @@ async def main():
         llm_generator=llm_gen_wrapper,
         db_fetcher=db_fetch_wrapper,
         uri_validator=mock_uri_validator,
-        target_wildcards=5,
+        target_playlist_size=20,
         max_attempts=3
     )
     

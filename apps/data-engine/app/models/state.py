@@ -9,4 +9,5 @@ class PlaylistState(BaseModel):
     validated_wildcards: List[Dict[str, Any]] = Field(default_factory=list, description="LLM songs that have been validated")
     rejected_wildcards: List[str] = Field(default_factory=list, description="Songs that failed validation")
     attempts: int = Field(default=0, description="Number of attempts to generate and validate songs")
+    target_wildcards: int = Field(default=0, description="Per-run wildcard target computed from how many library songs strongly match the vibe")
     final_playlist: List[Dict[str, Any]] = Field(default_factory=list, description="The final combined and shuffled playlist")

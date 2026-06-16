@@ -10,37 +10,70 @@ logger = logging.getLogger(__name__)
 
 class PlaylistGraphBuilder:
     def __init__(
-        self, 
+        self,
         llm_generator: Callable[[str, int, List[str], List[Dict[str, Any]], List[str]], Awaitable[List[Dict[str, Any]]]],
-        db_fetcher: Callable[[str], Awaitable[List[Dict[str, Any]]]], 
-        uri_validator: Callable[[Dict[str, Any]], Awaitable[bool]], 
-        target_wildcards: int = 5, 
-        max_attempts: int = 3
+        db_fetcher: Callable[[str], Awaitable[List[Dict[str, Any]]]],
+        uri_validator: Callable[[Dict[str, Any]], Awaitable[bool]],
+        target_playlist_size: int = 20,
+        min_wildcards: int = 3,
+        strong_match_distance: float = 0.4,
+        max_attempts: int = 3,
     ):
         self.llm_generator = llm_generator
         self.db_fetcher = db_fetcher
         self.uri_validator = uri_validator
-        self.target_wildcards = target_wildcards
+        self.target_playlist_size = target_playlist_size
+        self.min_wildcards = min_wildcards
+        self.strong_match_distance = strong_match_distance
         self.max_attempts = max_attempts
 
     async def initial_fetch(self, state: PlaylistState) -> Dict[str, Any]:
         logger.info(f"Starting initial fetch for event: {state.event_description}")
-        # Sequential: Fetch DB songs first, then use them as context for LLM
-        db_songs = await self.db_fetcher(state.event_description)
-        anchor_artists = list({s["artist"] for s in db_songs if s.get("artist")})
+        retrieved = await self.db_fetcher(state.event_description)
+
+        # Only songs that STRONGLY match the vibe become the library spine.
+        strong_songs = [
+            s for s in retrieved
+            if s.get("distance", 1.0) <= self.strong_match_distance
+        ]
+        logger.info(
+            f"Library match: {len(retrieved)} retrieved, "
+            f"{len(strong_songs)} strong (<= {self.strong_match_distance})"
+        )
+
+        # Anchors come from the FULL participant library (seeded into state by
+        # the endpoint), NOT the vibe-filtered retrieval. Otherwise a weak match
+        # leaves no anchors and the DJ generates generic, taste-blind wildcards.
+        # Fall back to retrieval-derived artists only when nothing was seeded.
+        anchor_artists = state.anchor_artists or list(
+            {s["artist"] for s in retrieved if s.get("artist")}
+        )
+
+        # Few strong matches -> generation fills the playlist (vibe-carrying).
+        # Many strong matches -> library stays the spine, minimal generation.
+        target_wildcards = max(
+            self.min_wildcards,
+            self.target_playlist_size - len(strong_songs),
+        )
+        logger.info(
+            f"Dynamic wildcard target: {target_wildcards} "
+            f"(playlist_size={self.target_playlist_size}, strong={len(strong_songs)})"
+        )
+
         candidate_wildcards = await self.llm_generator(
             state.event_description,
-            self.target_wildcards,
+            target_wildcards,
             [],
-            db_songs,
+            strong_songs,
             anchor_artists,
         )
 
         return {
-            "db_songs": db_songs,
+            "db_songs": strong_songs,
             "anchor_artists": anchor_artists,
             "candidate_wildcards": candidate_wildcards,
-            "attempts": 1
+            "attempts": 1,
+            "target_wildcards": target_wildcards,
         }
 
     async def validate(self, state: PlaylistState) -> Dict[str, Any]:
@@ -71,7 +104,7 @@ class PlaylistGraphBuilder:
         }
 
     async def regenerate(self, state: PlaylistState) -> Dict[str, Any]:
-        missing = self.target_wildcards - len(state.validated_wildcards)
+        missing = state.target_wildcards - len(state.validated_wildcards)
         logger.info(f"Regenerating {missing} missing wildcards (Attempt {state.attempts + 1})")
         
         new_candidates = await self.llm_generator(
@@ -88,7 +121,7 @@ class PlaylistGraphBuilder:
         }
 
     def should_finalize(self, state: PlaylistState) -> str:
-        if len(state.validated_wildcards) >= self.target_wildcards:
+        if len(state.validated_wildcards) >= state.target_wildcards:
             logger.info("Target wildcards reached. Proceeding to finalize.")
             return "merge_and_shuffle"
         

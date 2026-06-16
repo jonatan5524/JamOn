@@ -3,6 +3,8 @@ import { HttpService } from "@nestjs/axios";
 import { of, throwError } from "rxjs";
 import { AxiosResponse } from "axios";
 import { HttpException, HttpStatus } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { JwtService } from "@nestjs/jwt";
 import { AuthService } from "../src/modules/auth/auth.service";
 import { ConfigService } from "@nestjs/config";
 import { UserService } from "../src/modules/user/user.service";
@@ -30,8 +32,16 @@ describe("AuthService", () => {
         AuthService,
         {
           provide: HttpService,
+          useValue: { post: jest.fn() },
+        },
+        {
+          provide: ConfigService,
           useValue: {
-            post: jest.fn(),
+            get: jest.fn((key: string) => ({
+              SPOTIFY_CLIENT_ID: "test-client-id",
+              SPOTIFY_CLIENT_SECRET: "test-client-secret",
+              SPOTIFY_REDIRECT_URI: "http://localhost:3000/auth/spotify/callback",
+            }[key] ?? "")),
           },
         },
         {

@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
 import { of, throwError } from 'rxjs';
 import { AxiosResponse } from 'axios';
 import { SpotifyService } from '../src/modules/spotify/spotify.service';
@@ -30,7 +31,10 @@ describe('SpotifyService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn(),
+            get: jest.fn((key: string) => ({
+              SPOTIFY_CLIENT_ID: 'test-client-id',
+              SPOTIFY_CLIENT_SECRET: 'test-client-secret',
+            }[key] ?? '')),
           },
         },
       ],

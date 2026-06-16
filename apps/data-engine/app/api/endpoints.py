@@ -17,6 +17,7 @@ from app.services import lyrics
 from app.services.embedding_text import build_embedding_text
 from app.services.enrichment import enrich_song
 from app.services.validator import validate_spotify_uri_via_nestjs
+from app.services.db import fetch_event_description, fetch_event_songs
 from app.workflows.playlist_generator import PlaylistGraphBuilder
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ def _library_anchor_artists(songs) -> List[str]:
     """Deduplicated artist list from the full participant library. Used to
     anchor wildcard generation to the group's taste even when no library song
     matches the requested vibe."""
-    return list({s.artist for s in songs if s.artist})
+    return list({s["artist"] for s in songs if s["artist"]})
 
 
 @router.post(
@@ -39,66 +40,33 @@ def _library_anchor_artists(songs) -> List[str]:
 )
 async def recommend(http_request: Request, request: RecommendRequest):
     logger.info("===== /recommend START =====")
-    logger.info(f"Event description: '{request.event_description}'")
-    logger.info(f"Songs received: {len(request.songs)}")
-    for i, s in enumerate(request.songs[:5]):
-        logger.info(f"  Song[{i}]: {s.title} — {s.artist}")
-    if len(request.songs) > 5:
-        logger.info(f"  ... and {len(request.songs) - 5} more")
-
-    if not request.songs:
-        raise HTTPException(status_code=400, detail="No songs provided for context")
+    logger.info(f"Event ID: '{request.event_id}'")
 
     providers = http_request.app.state.providers
 
-    raw_songs = [
-        {"track_id": f"{s.title}-{s.artist}",
-         "title": s.title,
-         "artist": s.artist}
-        for s in request.songs
-    ]
-    logger.info(f"Enriching {len(raw_songs)} songs...")
-    # enrich_song does blocking HTTP (Genius/Musixmatch/Last.fm). Run each in a worker
-    # thread and fan out concurrently so we don't block the event loop or serialize I/O.
-    enriched_songs = await asyncio.gather(
-        *(asyncio.to_thread(enrich_song, s) for s in raw_songs)
+    event_description, song_rows = await asyncio.gather(
+        asyncio.to_thread(fetch_event_description, request.event_id),
+        asyncio.to_thread(fetch_event_songs, request.event_id),
     )
-    logger.info(f"Enrichment complete — {sum(1 for e in enriched_songs if e.lyrics_snippet)} with lyrics")
+    logger.info(f"Event description: '{event_description}'")
+    logger.info(f"Songs fetched from DB: {len(song_rows)}")
+    for i, s in enumerate(song_rows[:5]):
+        logger.info(f"  Song[{i}]: {s['title']} — {s['artist']}")
+    if len(song_rows) > 5:
+        logger.info(f"  ... and {len(song_rows) - 5} more")
 
-    input_songs = [
-        {
-            "title": e.title,
-            "artist": e.artist,
-            "lastfm_tags": e.lastfm_tags,
-            "lyrics_snippet": e.lyrics_snippet,
-        }
-        for e in enriched_songs
-    ]
+    if not song_rows:
+        raise HTTPException(status_code=400, detail="No songs found for this event's participants")
 
-    logger.info(f"Tagging {len(input_songs)} songs...")
-    songs_with_features = await asyncio.to_thread(
-        providers.llm.tagging.tag_songs, input_songs
-    )
-    if not songs_with_features:
-        logger.error("Tagging returned empty result")
-        raise HTTPException(status_code=500, detail="Failed to tag songs")
-    logger.info(f"Tagging complete — {len(songs_with_features)} songs tagged")
-
-    lyrics_map = {e.title: e.lyrics_snippet or "" for e in enriched_songs}
-
-    logger.info("Indexing songs in RAG engine...")
     rag = RagEngine(
         vector_store=providers.vector_store,
         embedder=providers.llm.embedding,
         dj=providers.llm.dj,
         hyde=providers.llm.hyde,
     )
-    await asyncio.to_thread(rag.add_songs, songs_with_features, lyrics_map)
-    logger.info("RAG indexing complete")
 
     async def db_fetch_wrapper(query: str):
-        # Retrieve a wide candidate set; the graph keeps only strong matches.
-        return await rag.query_songs(query, n_results=50)
+        return await rag.query_songs(query, event_id=request.event_id, n_results=20)
 
     async def llm_gen_wrapper(prompt: str, count: int, rejected: List[str], context: List[dict], anchor_artists: List[str]):
         return await asyncio.to_thread(
@@ -119,8 +87,8 @@ async def recommend(http_request: Request, request: RecommendRequest):
 
     try:
         final_state = await workflow.ainvoke({
-            "event_description": request.event_description,
-            "anchor_artists": _library_anchor_artists(request.songs),
+            "event_description": event_description,
+            "anchor_artists": _library_anchor_artists(song_rows),
         })
         playlist = final_state.get("final_playlist", [])
     except Exception as e:

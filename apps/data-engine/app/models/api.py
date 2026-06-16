@@ -3,8 +3,7 @@ from typing import List, Optional
 from .song import Track
 
 class RecommendRequest(BaseModel):
-    event_description: str = Field(..., example="A high-energy rooftop pool party with house music")
-    songs: List[Track]
+    event_id: str = Field(..., example="42")
 
 class RecommendedSong(BaseModel):
     title: str = Field(..., example="One Kiss")

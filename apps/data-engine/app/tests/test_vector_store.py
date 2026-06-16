@@ -32,7 +32,7 @@ def test_query_songs_excludes_songs_beyond_max_distance():
     store = ChromaVectorStore("vibe_excludes_2")
     store.add_songs(songs, {}, embedder)
 
-    results = store.query_songs("chill query", embedder, n_results=5, max_distance=0.7)
+    results = store.query_songs("chill query", embedder, n_results=5, max_distance=0.7, event_id="")
     titles = [r["title"] for r in results]
     assert "Chill Song" in titles
     assert "Hype Song" not in titles  # 1.0 > 0.7 -> dropped, not fallback-returned
@@ -45,7 +45,7 @@ def test_query_songs_returns_empty_when_nothing_matches():
     store = ChromaVectorStore("vibe_empty_2")
     store.add_songs(songs, {}, embedder)
 
-    results = store.query_songs("chill query", embedder, n_results=5, max_distance=0.7)
+    results = store.query_songs("chill query", embedder, n_results=5, max_distance=0.7, event_id="")
     assert results == []  # no silent fallback to mismatched library
 
 
@@ -56,7 +56,7 @@ def test_query_songs_attaches_distance():
     store = ChromaVectorStore("vibe_distance_2")
     store.add_songs(songs, {}, embedder)
 
-    results = store.query_songs("chill query", embedder, n_results=5, max_distance=0.7)
+    results = store.query_songs("chill query", embedder, n_results=5, max_distance=0.7, event_id="")
     assert results[0]["distance"] < 0.01  # near-zero cosine distance
 
 

@@ -36,19 +36,11 @@ class DJProvider(Protocol):
 class VectorStore(Protocol):
     collection_name: str
 
-    def add_songs(
-        self,
-        songs_with_features: List[dict],
-        lyrics_map: dict,
-        embedder: EmbeddingProvider,
-    ) -> None: ...
-
     def query_songs(
         self,
         query_text: str,
         embedder: EmbeddingProvider,
         n_results: int,
         max_distance: float,
+        event_id: str,
     ) -> List[dict]: ...
-
-    def song_exists(self, track_id: str) -> bool: ...

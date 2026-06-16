@@ -1,6 +1,5 @@
 openai
 google-genai
-chromadb
 python-dotenv
 dotenv
 fastapi
@@ -8,3 +7,5 @@ uvicorn
 tenacity
 langgraph
 httpx
+psycopg2-binary
+chromadb

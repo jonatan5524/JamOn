@@ -93,6 +93,7 @@ class ChromaVectorStore:
         embedder: EmbeddingProvider,
         n_results: int,
         max_distance: float,
+        event_id: str = "",
     ) -> List[dict]:
         query_embedding = embedder.embed_query(query_text)
         if not query_embedding:

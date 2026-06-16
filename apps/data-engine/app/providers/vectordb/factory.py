@@ -18,12 +18,8 @@ class VectorStoreFactory:
             return ChromaVectorStore(collection_name=collection_name)
 
         if provider == "pgvector":
-            logger.warning(
-                "VECTOR_DB_PROVIDER=pgvector requested, but PgVectorStore is not implemented yet. "
-                "Falling back to ChromaVectorStore."
-            )
-            from app.providers.vectordb.chroma import ChromaVectorStore
-            return ChromaVectorStore(collection_name=collection_name)
+            from app.providers.vectordb.pgvector import PgVectorStore
+            return PgVectorStore(collection_name=collection_name)
 
         raise ConfigurationError(
             f"Unknown VECTOR_DB_PROVIDER: '{provider}'. Valid options: 'chroma', 'pgvector'"

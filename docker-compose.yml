@@ -30,7 +30,7 @@ services:
       - DB_NAME=${DB_NAME}
       - API_URL=${API_URL}
       - CLIENT_URL=${CLIENT_URL}
-      - DATA_ENGINE_URL=http://data-engine:8000
+      - DATA_ENGINE_URL=${DATA_ENGINE_URL}
 
   data-engine:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/jamon-data-engine:latest

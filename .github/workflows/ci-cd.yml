@@ -167,7 +167,7 @@ jobs:
       DB_NAME: ${{ vars.DB_NAME }}
       API_URL: ${{ vars.API_URL }}
       CLIENT_URL: ${{ vars.CLIENT_URL }}
-      DATA_ENGINE_URL: http://data-engine:8000
+      DATA_ENGINE_URL: ${{ vars.DATA_ENGINE_URL }}
       # ── Data engine env ───────────────────────────────────────────────────
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}

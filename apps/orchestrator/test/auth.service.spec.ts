@@ -4,6 +4,12 @@ import { of, throwError } from "rxjs";
 import { AxiosResponse } from "axios";
 import { HttpException, HttpStatus } from "@nestjs/common";
 import { AuthService } from "../src/modules/auth/auth.service";
+import { ConfigService } from "@nestjs/config";
+import { UserService } from "../src/modules/user/user.service";
+import { JwtService } from "@nestjs/jwt";
+import { SpotifyService } from "../src/modules/spotify/spotify.service";
+import { DataEngineService } from "../src/modules/data-engine/data-engine.service";
+import { SongService } from "../src/modules/song/song.service";
 
 const mockAxiosResponse = <T>(data: T): AxiosResponse<T> => ({
   data,
@@ -16,16 +22,9 @@ const mockAxiosResponse = <T>(data: T): AxiosResponse<T> => ({
 describe("AuthService", () => {
   let service: AuthService;
   let httpService: jest.Mocked<HttpService>;
-  const originalEnv = process.env;
+  let configService: jest.Mocked<ConfigService>;
 
   beforeEach(async () => {
-    process.env = {
-      ...originalEnv,
-      SPOTIFY_CLIENT_ID: "test-client-id",
-      SPOTIFY_CLIENT_SECRET: "test-client-secret",
-      SPOTIFY_REDIRECT_URI: "http://localhost:3000/auth/spotify/callback",
-    };
-
     const module = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -35,16 +34,46 @@ describe("AuthService", () => {
             post: jest.fn(),
           },
         },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) => ({
+              SPOTIFY_CLIENT_ID: "test-client-id",
+              SPOTIFY_CLIENT_SECRET: "test-client-secret",
+              SPOTIFY_REDIRECT_URI: "http://localhost:3000/auth/spotify/callback",
+            }[key] ?? "")),
+          },
+        },
+        {
+          provide: UserService,
+          useValue: {},
+        },
+        {
+          provide: JwtService,
+          useValue: {},
+        },
+        {
+          provide: SpotifyService,
+          useValue: {},
+        },
+        {
+          provide: DataEngineService,
+          useValue: {},
+        },
+        {
+          provide: SongService,
+          useValue: {},
+        },
       ],
     }).compile();
 
     module.useLogger(false);
     service = module.get(AuthService);
     httpService = module.get(HttpService);
+    configService = module.get(ConfigService);
   });
 
   afterEach(() => {
-    process.env = originalEnv;
     jest.clearAllMocks();
   });
 
@@ -68,17 +97,12 @@ describe("AuthService", () => {
     });
   });
 
-  describe("configuration validation", () => {
-    it("should throw when spotify oauth env vars are missing", () => {
-      process.env = {
-        ...originalEnv,
-      };
-      delete process.env.SPOTIFY_CLIENT_ID;
-      delete process.env.SPOTIFY_CLIENT_SECRET;
+  describe("configuration", () => {
+    it("should read spotify oauth values from ConfigService", () => {
+      service.getAuthorizationUrl();
 
-      expect(() => new AuthService({} as HttpService)).toThrow(
-        "Missing Spotify OAuth configuration: SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are required",
-      );
+      expect(configService.get).toHaveBeenCalledWith("SPOTIFY_CLIENT_ID");
+      expect(configService.get).toHaveBeenCalledWith("SPOTIFY_REDIRECT_URI");
     });
   });
 
@@ -90,6 +114,7 @@ describe("AuthService", () => {
             access_token: "access-token",
             token_type: "Bearer",
             expires_in: 3600,
+            refresh_token: "refresh-token",
             scope: "user-read-private",
           }),
         ),
@@ -101,6 +126,7 @@ describe("AuthService", () => {
         access_token: "access-token",
         token_type: "Bearer",
         expires_in: 3600,
+        refresh_token: "refresh-token",
         scope: "user-read-private",
       });
       expect(httpService.post).toHaveBeenCalledWith(

@@ -12,6 +12,7 @@ import ParticipantsCard from "@/components/event-detail/ParticipantsCard";
 import TasteContributionsCard from "@/components/event-detail/TasteContributionsCard";
 import ParticleBackground from "@/components/layout/ParticleBackground";
 import TopNav from "@/components/layout/TopNav";
+import ErrorState from "@/components/ui/error-state";
 import { toast } from "sonner";
 import { useEvent, useGenerateEventPlaylist } from "@/hooks/use-event";
 import { ApiError } from "@/lib/api/index";
@@ -29,7 +30,8 @@ const getGenerateErrorMessage = (err: unknown): string => {
 
 const Event = () => {
   const { eventId } = useParams<{ eventId: string }>();
-  const { data: event, isLoading, isError, error } = useEvent(eventId);
+  const { data: event, isLoading, isError, error, refetch, isFetching } =
+    useEvent(eventId);
   const generate = useGenerateEventPlaylist(eventId);
 
   const isNotFound = error instanceof ApiError && error.status === 404;
@@ -58,9 +60,12 @@ const Event = () => {
           ) : isForbidden ? (
             <EventAccessDenied />
           ) : isError ? (
-            <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-6 text-sm text-destructive">
-              Failed to load event.
-            </div>
+            <ErrorState
+              error={error}
+              title="Couldn't load this event"
+              onRetry={() => refetch()}
+              isRetrying={isFetching}
+            />
           ) : (
             <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
               <div className="flex flex-col gap-5">

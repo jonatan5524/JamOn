@@ -8,6 +8,7 @@ import Event from "./pages/Event";
 import JoinByCode from "./pages/JoinByCode";
 import UserMenu from "@/components/layout/UserMenu";
 import AppErrorBoundary from "@/components/layout/ErrorBoundary";
+import OfflineBanner from "@/components/layout/OfflineBanner";
 import { useSpotifyAuth } from "./hooks/use-spotify-auth";
 import MyEvents from "./pages/MyEvents";
 
@@ -33,6 +34,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Sonner />
+      <OfflineBanner />
       <BrowserRouter>
         <AppErrorBoundary>
           <Routes>

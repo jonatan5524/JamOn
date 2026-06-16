@@ -26,3 +26,9 @@ def test_build_embedding_text_fallback_survives_missing_fields():
     text = build_embedding_text({})
     assert isinstance(text, str)
     assert "Lyrics" not in text
+
+
+def test_build_embedding_text_fallback_handles_none_lyric_mood_tags():
+    text = build_embedding_text({"energy_desc": "high", "lyric_mood_tags": None})
+    assert isinstance(text, str)
+    assert "Lyrics" not in text

@@ -197,8 +197,6 @@ async def ingest_batch(http_request: Request, tracks: List[Track]):
         raise HTTPException(status_code=500, detail="Failed to tag songs")
     logger.info(f"Tagging complete — {len(songs_with_features)} songs tagged")
 
-    lyrics_map = {e.title: e.lyrics_snippet or "" for e in enriched_songs}
-
     texts = [build_embedding_text(song) for song in songs_with_features]
 
     logger.info(f"Creating embeddings for {len(texts)} songs...")

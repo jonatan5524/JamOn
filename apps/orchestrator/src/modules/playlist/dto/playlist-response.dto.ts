@@ -11,4 +11,14 @@ export interface PlaylistResponseDto {
   tracksAdded: number;
   tracksNotFound: string[];
   totalRequested: number;
+  tracks: PlaylistTrackResultDto[];
+}
+
+export interface PlaylistTrackResultDto {
+  songId: string;
+  title: string;
+  artist: string;
+  spotifyUri: string;
+  spotifyUrl: string;
+  position: number;
 }

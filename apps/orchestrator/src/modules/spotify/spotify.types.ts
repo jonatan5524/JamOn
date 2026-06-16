@@ -8,6 +8,8 @@ export interface SpotifyTrack {
   uri: string;
   name: string;
   id: string;
+  duration_ms?: number;
+  external_urls?: { spotify?: string };
   artists: SpotifyArtist[];
 }
 
@@ -28,9 +30,19 @@ export interface SpotifyPlaylist {
   url: string;
 }
 
+export interface SpotifyTrackMatch {
+  id: string;
+  uri: string;
+  title: string;
+  artist: string;
+  url: string;
+}
+
 export interface SimplifiedTrack {
   title: string;
   artist: string;
+  spotifyUri?: string;
+  spotifyUrl?: string;
 }
 
 export interface SpotifyTopTracksResponse {

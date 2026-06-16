@@ -59,6 +59,7 @@ export interface EventDetail extends EventSummary {
   participants: Participant[];
   mix: JamOnMix | null;
   contributions: TasteContribution[];
+  playlistMatchPercent?: number;
   /** Current viewer's role on this event, from the backend. */
   viewerRole: EventRole;
 }

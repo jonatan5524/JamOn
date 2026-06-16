@@ -13,6 +13,7 @@ import { Event } from "./modules/event/event.entity";
 import { EventParticipant } from "./modules/event/event-participant.entity";
 import { Song } from "./modules/song/song.entity";
 import { SongLike } from "./modules/song/song-like.entity";
+import { EventPlaylistTrack } from "./modules/event/event-playlist-track.entity";
 
 @Module({
   imports: [
@@ -30,7 +31,7 @@ import { SongLike } from "./modules/song/song-like.entity";
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
-        entities: [User, Event, EventParticipant, Song, SongLike],
+        entities: [User, Event, EventParticipant, EventPlaylistTrack, Song, SongLike],
         synchronize: true,
         autoLoadEntities: true
       }),

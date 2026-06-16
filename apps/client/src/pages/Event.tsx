@@ -5,6 +5,7 @@ import EventCodeBadge, {
 import EventAccessDenied from "@/components/event-detail/EventAccessDenied";
 import EventNotFound from "@/components/event-detail/EventNotFound";
 import GeneratePlaylistCard from "@/components/event-detail/GeneratePlaylistCard";
+import GroupMatchCard from "@/components/event-detail/GroupMatchCard";
 import InviteGuestsCard from "@/components/event-detail/InviteGuestsCard";
 import JamOnMixCard from "@/components/event-detail/JamOnMixCard";
 import ParticipantsCard from "@/components/event-detail/ParticipantsCard";
@@ -81,9 +82,12 @@ const Event = () => {
                       participants={event?.participants ?? []}
                       isLoading={isLoading}
                     />
+                    <GroupMatchCard
+                      percent={event?.playlistMatchPercent}
+                      isLoading={isLoading}
+                    />
                     <TasteContributionsCard
                       contributions={event?.contributions ?? []}
-                      playlistMatchPercent={event?.playlistMatchPercent}
                       isLoading={isLoading}
                     />
                   </>

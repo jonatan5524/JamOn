@@ -14,32 +14,16 @@ import { generateEventCode } from "./event-code.util";
 import { EventRoleType } from "./event-role.decorator";
 import { SongLike } from "../song/song-like.entity";
 import type { PlaylistTrackResultDto } from "../playlist/dto/playlist-response.dto";
+import type { EventStatistics } from "./event-statistics.types";
 
 const MAX_CODE_RETRIES = 5;
 const PG_UNIQUE_VIOLATION = "23505";
 
 type Vector = number[];
 
-export interface EventStatistics {
-  playlistMatchPercent: number;
-  tracks: Array<{
-    id: string;
-    position: number;
-    title: string;
-    artist: string;
-    spotifyUrl?: string;
-    contributorIds: string[];
-  }>;
-  contributions: Array<{
-    participantId: string;
-    participantName: string;
-    percent: number;
-  }>;
-}
-
 export type EventWithRole = Event & {
   viewerRole: EventRoleType;
-  statistics?: EventStatistics;
+  statistics?: EventStatistics | null;
 };
 
 const parseEmbedding = (embedding: string | number[] | null | undefined): Vector | null => {
@@ -179,8 +163,7 @@ export class EventsService {
       throw new ForbiddenException("You are not a member of this event");
     }
 
-    const statistics = await this.getStatisticsForEvent(event);
-    return Object.assign(event, { viewerRole: role, statistics });
+    return Object.assign(event, { viewerRole: role });
   }
 
   // Lightweight role lookup for EventRoleGuard (no participant.user join).
@@ -223,6 +206,7 @@ export class EventsService {
         playlistId,
         playlistUrl,
         tracksAdded,
+        statistics: null,
       });
 
       await manager.delete(EventPlaylistTrack, { eventId });
@@ -238,6 +222,17 @@ export class EventsService {
         );
       }
     });
+
+    const event = await this.eventRepository.findOne({
+      where: { id: eventId },
+      relations: ["participants", "participants.user", "creator"],
+    });
+    if (!event) {
+      throw new NotFoundException(`Event ${eventId} not found`);
+    }
+
+    const statistics = await this.calculateStatisticsForEvent(event);
+    await this.eventRepository.update(eventId, { statistics });
   }
 
   async joinEvent(eventId: string, userId: string): Promise<EventParticipant> {
@@ -283,9 +278,13 @@ export class EventsService {
     });
   }
 
-  private async getStatisticsForEvent(event: Event): Promise<EventStatistics | undefined> {
-    if (!event.playlistId || !event.participants?.length) {
-      return undefined;
+  private async calculateStatisticsForEvent(event: Event): Promise<EventStatistics> {
+    if (!event.participants?.length) {
+      return {
+        playlistMatchPercent: 0,
+        tracks: [],
+        contributions: [],
+      };
     }
 
     const playlistTracks = await this.playlistTrackRepository.find({

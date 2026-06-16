@@ -4,7 +4,6 @@ import type { TasteContribution } from "@/types/event";
 
 interface TasteContributionsCardProps {
   contributions: TasteContribution[];
-  playlistMatchPercent?: number;
   isLoading?: boolean;
   className?: string;
 }
@@ -36,7 +35,6 @@ const SkeletonRow = () => (
 
 const TasteContributionsCard = ({
   contributions,
-  playlistMatchPercent,
   isLoading,
   className,
 }: TasteContributionsCardProps) => {
@@ -47,13 +45,8 @@ const TasteContributionsCard = ({
         className,
       )}
     >
-      <header className="mb-4 flex items-center justify-between gap-3 text-sm font-semibold text-foreground">
-        <span>Taste Contributions</span>
-        {!isLoading && playlistMatchPercent !== undefined ? (
-          <span className="text-xs font-medium text-accent">
-            {playlistMatchPercent}% match
-          </span>
-        ) : null}
+      <header className="mb-4 text-sm font-semibold text-foreground">
+        Taste Contributions
       </header>
       <ul className="flex flex-col gap-3">
         {isLoading

@@ -42,7 +42,7 @@ interface BackendEvent {
   playlistId?: string | null;
   playlistUrl?: string | null;
   tracksAdded?: number | null;
-  statistics?: BackendEventStatistics;
+  statistics?: BackendEventStatistics | null;
 }
 
 interface BackendEventStatistics {

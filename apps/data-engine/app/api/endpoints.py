@@ -14,24 +14,13 @@ from app.models.api import (
 from app.models.song import Track
 from app.services.rag import RagEngine
 from app.services import lyrics
+from app.services.embedding_text import build_embedding_text
 from app.services.enrichment import enrich_song
 from app.services.validator import validate_spotify_uri_via_nestjs
 from app.workflows.playlist_generator import PlaylistGraphBuilder
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _build_embedding_text(song: dict, lyrics: str) -> str:
-    if song.get("embedding_text"):
-        return f"{song['embedding_text']}\n\nLyrics Snippet:\n{lyrics[:500]}..."
-    return (
-        f"Title: {song.get('title', '')}\nArtist: {song.get('artist', '')}\n"
-        f"Energy: {song.get('energy_desc', '')}\n"
-        f"Mood: {song.get('mood_desc', '')}\n"
-        f"Tags: {', '.join(song.get('vibe_tags', []))}\n"
-        f"Lyrics: {lyrics[:500]}..."
-    )
 
 
 @router.post(
@@ -210,10 +199,7 @@ async def ingest_batch(http_request: Request, tracks: List[Track]):
 
     lyrics_map = {e.title: e.lyrics_snippet or "" for e in enriched_songs}
 
-    texts = [
-        _build_embedding_text(song, lyrics_map.get(song.get("title", ""), ""))
-        for song in songs_with_features
-    ]
+    texts = [build_embedding_text(song) for song in songs_with_features]
 
     logger.info(f"Creating embeddings for {len(texts)} songs...")
     vectors = await asyncio.to_thread(providers.llm.embedding.embed_documents, texts)

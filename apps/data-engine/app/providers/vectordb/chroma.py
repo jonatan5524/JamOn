@@ -3,6 +3,7 @@ from typing import List
 import chromadb
 from app.providers.protocols import EmbeddingProvider
 from app.providers.exceptions import CollectionMismatchError
+from app.services.embedding_text import build_embedding_text
 
 logger = logging.getLogger(__name__)
 
@@ -33,18 +34,7 @@ class ChromaVectorStore:
         for song in songs_with_features:
             title = song.get("title", "")
             artist = song.get("artist", "")
-            lyrics = lyrics_map.get(title, "")
-
-            if "embedding_text" in song:
-                text = f"{song['embedding_text']}\n\nLyrics Snippet:\n{lyrics[:500]}..."
-            else:
-                text = (
-                    f"Title: {title}\nArtist: {artist}\n"
-                    f"Energy: {song.get('energy_desc', '')}\n"
-                    f"Mood: {song.get('mood_desc', '')}\n"
-                    f"Tags: {', '.join(song.get('vibe_tags', []))}\n"
-                    f"Lyrics: {lyrics[:500]}..."
-                )
+            text = build_embedding_text(song)
             logger.debug(
                 f"[chroma] embedding text for '{title}' by '{artist}' "
                 f"({len(text)} chars): {text[:150]!r}..."

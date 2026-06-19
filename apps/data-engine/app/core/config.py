@@ -8,8 +8,8 @@ load_dotenv(dotenv_path)
 class Settings:
     def __init__(self):
         self.GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-        self.AUDIO_FEATURES_MODEL = "gemini-3.5-flash"
-        self.PLAYLIST_GENERATION_MODEL = "gemini-3.5-flash"
+        self.AUDIO_FEATURES_MODEL = "gemini-2.5-flash"
+        self.PLAYLIST_GENERATION_MODEL = "gemini-2.5-flash"
         self.EMBEDDING_MODEL = "gemini-embedding-2-preview"
         self.ORCHESTRATOR_URL = os.environ.get("ORCHESTRATOR_URL", "http://localhost:3000")
         # Provider selection — architectural choices, override via env var if needed
@@ -38,5 +38,6 @@ class Settings:
         self.DB_NAME: str = os.environ.get("DB_NAME", "")
         self.DB_USERNAME: str = os.environ.get("DB_USERNAME", "")
         self.DB_PASSWORD: str = os.environ.get("DB_PASSWORD", "")
+        self.TUNED_PARAMS_PATH: str = os.environ.get("TUNED_PARAMS_PATH", "eval/optimized/params.json")
 
 settings = Settings()

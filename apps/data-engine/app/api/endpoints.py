@@ -19,6 +19,7 @@ from app.services.enrichment import enrich_song
 from app.services.validator import validate_spotify_uri_via_nestjs
 from app.services.db import fetch_event_description, fetch_event_songs
 from app.workflows.playlist_generator import PlaylistGraphBuilder
+from app.core.tuned_params import load_tuned_params, scale_params_to_target, TARGET_PLAYLIST_SIZE
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -65,8 +66,16 @@ async def recommend(http_request: Request, request: RecommendRequest):
         hyde=providers.llm.hyde,
     )
 
+    tuned = scale_params_to_target(load_tuned_params(), TARGET_PLAYLIST_SIZE)
+    logger.info(f"Using tuned params (scaled to {TARGET_PLAYLIST_SIZE} songs): {tuned}")
+
     async def db_fetch_wrapper(query: str):
-        return await rag.query_songs(query, event_id=request.event_id, n_results=20)
+        return await rag.query_songs(
+            query,
+            event_id=request.event_id,
+            n_results=tuned["n_results"],
+            max_distance=tuned["max_distance"],
+        )
 
     async def llm_gen_wrapper(prompt: str, count: int, rejected: List[str], context: List[dict], anchor_artists: List[str]):
         return await asyncio.to_thread(
@@ -77,10 +86,11 @@ async def recommend(http_request: Request, request: RecommendRequest):
         llm_generator=llm_gen_wrapper,
         db_fetcher=db_fetch_wrapper,
         uri_validator=validate_spotify_uri_via_nestjs,
-        target_playlist_size=20,
+        target_playlist_size=TARGET_PLAYLIST_SIZE,
         min_wildcards=3,
-        strong_match_distance=0.4,
+        strong_match_margin=tuned["strong_match_margin"],
         max_attempts=3,
+        overprovision_factor=2.0,
     )
     workflow = builder.build()
     logger.info("LangGraph workflow built — invoking...")

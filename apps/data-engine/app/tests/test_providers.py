@@ -2,6 +2,15 @@ import pytest
 from unittest.mock import MagicMock
 
 
+def test_tuned_params_uses_strong_match_margin_not_distance():
+    from app.core.tuned_params import load_tuned_params, DEFAULTS
+    assert "strong_match_margin" in DEFAULTS
+    assert "strong_match_distance" not in DEFAULTS
+    params = load_tuned_params()
+    assert "strong_match_margin" in params
+    assert isinstance(params["strong_match_margin"], float)
+
+
 def test_exceptions_are_exception_subclasses():
     from app.providers.exceptions import (
         ConfigurationError, EmbeddingError, TaggingError,
@@ -945,3 +954,25 @@ def test_library_anchor_artists_dedupes_and_skips_empty():
     ]
     result = _library_anchor_artists(songs)
     assert sorted(result) == ["Drake", "Eminem"]
+
+
+def test_tuned_strong_match_margin_overrides_default(tmp_path, monkeypatch):
+    """If eval/optimized/params.json contains strong_match_margin, it is loaded."""
+    import json
+    from app.core import tuned_params as tp_module
+
+    params_file = tmp_path / "params.json"
+    params_file.write_text(json.dumps({"strong_match_margin": 0.08}))
+
+    monkeypatch.setattr(tp_module.settings, "TUNED_PARAMS_PATH", str(params_file))
+    params = tp_module.load_tuned_params()
+    assert params["strong_match_margin"] == 0.08
+
+
+def test_param_grid_sweeps_strong_match_margin():
+    from eval.optimizer import PARAM_GRID, grid_combinations
+    assert "strong_match_margin" in PARAM_GRID
+    assert "strong_match_distance" not in PARAM_GRID
+    combos = list(grid_combinations())
+    assert len(combos) == 81  # 3 × 3 × 3 × 3
+    assert all("strong_match_margin" in c for c in combos)

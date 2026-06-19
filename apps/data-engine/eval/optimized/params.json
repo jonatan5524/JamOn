@@ -1,0 +1,6 @@
+{
+  "n_results": 5,
+  "max_distance": 0.8,
+  "target_wildcards": 7,
+  "strong_match_margin": 0.1
+}

@@ -1,0 +1,42 @@
+{
+  "timestamp": "2026-06-18T13:45:00.582685",
+  "events": [
+    "summer rooftop party with friends",
+    "late night study session",
+    "morning workout at the gym",
+    "relaxed dinner at home",
+    "long road trip on the highway",
+    "romantic evening at home",
+    "sad and introspective Sunday afternoon",
+    "high-energy pregame before a night out"
+  ],
+  "holdout_events": [
+    "intense gaming session with the squad",
+    "calm rainy morning with coffee and a book",
+    "beach bonfire as the sun goes down",
+    "focused deep-work coding sprint"
+  ],
+  "phase1": {
+    "best_params": {
+      "n_results": 5,
+      "max_distance": 0.8,
+      "target_wildcards": 3,
+      "strong_match_margin": 0.06
+    },
+    "best_partial_score": 0.42462791027002506
+  },
+  "phase2": {
+    "score_history": [
+      0.7496279102700251,
+      0.7808779102700252,
+      0.7183779102700251,
+      0.7308779102700251,
+      0.793377910270025,
+      0.827752910270025
+    ],
+    "best_composite": 0.827752910270025
+  },
+  "holdout": {
+    "composite": 0.7812708127111962
+  }
+}

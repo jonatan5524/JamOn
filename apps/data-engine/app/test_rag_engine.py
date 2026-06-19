@@ -33,7 +33,7 @@ async def test_initial_fetch():
     # playlist_size 4, 1 strong match -> 3 wildcards
     builder = PlaylistGraphBuilder(
         mock_llm, mock_db, None,
-        target_playlist_size=4, min_wildcards=1, strong_match_distance=0.4,
+        target_playlist_size=4, min_wildcards=1, strong_match_margin=0.10,
     )
     state = PlaylistState(event_description="test event")
 

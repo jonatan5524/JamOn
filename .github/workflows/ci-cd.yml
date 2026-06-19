@@ -138,6 +138,7 @@ jobs:
       LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
       GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
       ORCHESTRATOR_URL: ${{ vars.ORCHESTRATOR_URL }}
+      LOG_LEVEL: ${{ vars.LOG_LEVEL }}
 
     steps:
       - name: Checkout (for docker-compose.yml)

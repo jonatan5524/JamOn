@@ -9,6 +9,8 @@ def _get_connection():
         dbname=settings.DB_NAME,
         user=settings.DB_USERNAME,
         password=settings.DB_PASSWORD,
+        connect_timeout=10,
+        options="-c statement_timeout=30000",
     )
 
 

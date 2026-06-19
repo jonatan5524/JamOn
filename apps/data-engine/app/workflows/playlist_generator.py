@@ -16,16 +16,18 @@ class PlaylistGraphBuilder:
         uri_validator: Callable[[Dict[str, Any]], Awaitable[bool]],
         target_playlist_size: int = 20,
         min_wildcards: int = 3,
-        strong_match_distance: float = 0.4,
+        strong_match_margin: float = 0.10,
         max_attempts: int = 3,
+        overprovision_factor: float = 1.0,
     ):
         self.llm_generator = llm_generator
         self.db_fetcher = db_fetcher
         self.uri_validator = uri_validator
         self.target_playlist_size = target_playlist_size
         self.min_wildcards = min_wildcards
-        self.strong_match_distance = strong_match_distance
+        self.strong_match_margin = strong_match_margin
         self.max_attempts = max_attempts
+        self.overprovision_factor = overprovision_factor
 
     async def initial_fetch(self, state: PlaylistState) -> Dict[str, Any]:
         logger.info(f"Starting initial fetch for event: {state.event_description}")
@@ -36,15 +38,24 @@ class PlaylistGraphBuilder:
         # don't trust the store's return order.
         retrieved = sorted(retrieved, key=lambda s: s.get("distance", 1.0))
 
-        # Only songs that STRONGLY match the vibe are eligible for the spine.
-        strong_songs = [
-            s for s in retrieved
-            if s.get("distance", 1.0) <= self.strong_match_distance
-        ]
-        logger.info(
-            f"Library match: {len(retrieved)} retrieved, "
-            f"{len(strong_songs)} strong (<= {self.strong_match_distance})"
-        )
+        # Spine eligibility is RELATIVE, not an absolute distance. This embedding
+        # model packs all real-text cosine distances into a narrow band (~0.20-0.35),
+        # so a fixed absolute gate is brittle: a hair too low excludes the entire
+        # library (empty spine), a hair too high admits every song. Instead keep songs
+        # within `strong_match_margin` of the CLOSEST match for THIS query. The absolute
+        # quality gate is max_distance, applied upstream at retrieval; this margin only
+        # picks the best-fitting cluster from the pool that already cleared it.
+        if retrieved:
+            best_distance = retrieved[0].get("distance", 1.0)  # retrieved is sorted ascending
+            cutoff = best_distance + self.strong_match_margin
+            strong_songs = [s for s in retrieved if s.get("distance", 1.0) <= cutoff]
+            logger.info(
+                f"Library match: {len(retrieved)} retrieved, {len(strong_songs)} strong "
+                f"(within {self.strong_match_margin} of best={best_distance:.4f}, cutoff={cutoff:.4f})"
+            )
+        else:
+            strong_songs = []
+            logger.info("Library match: 0 retrieved, 0 strong")
 
         # Anchors come from the FULL participant library (seeded into state by
         # the endpoint), NOT the vibe-filtered retrieval. Otherwise a weak match
@@ -73,9 +84,10 @@ class PlaylistGraphBuilder:
             f"spine={len(spine_songs)})"
         )
 
+        requested_count = round(target_wildcards * self.overprovision_factor)
         candidate_wildcards = await self.llm_generator(
             state.event_description,
-            target_wildcards,
+            requested_count,
             [],
             spine_songs,
             anchor_artists,
@@ -120,9 +132,10 @@ class PlaylistGraphBuilder:
         missing = state.target_wildcards - len(state.validated_wildcards)
         logger.info(f"Regenerating {missing} missing wildcards (Attempt {state.attempts + 1})")
         
+        requested_count = round(missing * self.overprovision_factor)
         new_candidates = await self.llm_generator(
             state.event_description,
-            missing,
+            requested_count,
             state.rejected_wildcards,
             state.db_songs,
             state.anchor_artists,

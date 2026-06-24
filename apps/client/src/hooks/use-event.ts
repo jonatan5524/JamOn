@@ -35,7 +35,11 @@ export const useEvent = (eventId: string | undefined) =>
     enabled: Boolean(eventId),
     queryFn: () => getEvent(eventId as string),
     staleTime: 30_000,
-    refetchInterval: 12_000,
+    refetchInterval: (query) =>
+      query.state.error instanceof ApiError &&
+      (query.state.error.status === 404 || query.state.error.status === 403)
+        ? false
+        : 12_000,
     retry: (count, err) =>
       !(err instanceof ApiError && (err.status === 404 || err.status === 403)) &&
       count < 3,

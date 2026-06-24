@@ -69,6 +69,7 @@ const fullDetail: EventDetail = {
     { participantId: "p3", participantName: "Sam", percent: 22, colorHex: "#ef4444" },
     { participantId: "p4", participantName: "Taylor", percent: 26, colorHex: "#0ea5e9" },
   ],
+  statisticsReady: true,
   viewerRole: "creator",
 };
 
@@ -82,6 +83,7 @@ const emptyDetail: EventDetail = {
   participants: [],
   mix: null,
   contributions: [],
+  statisticsReady: false,
   viewerRole: "creator",
 };
 

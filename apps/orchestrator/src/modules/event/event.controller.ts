@@ -169,6 +169,7 @@ export class EventsController {
       result.playlistUrl,
       result.tracksAdded,
       result.tracks,
+      result.hasPendingEmbeddings,
     );
 
     return result;

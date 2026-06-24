@@ -104,14 +104,17 @@ const Event = () => {
                       mix={event?.mix ?? null}
                       participants={event?.participants ?? []}
                       isLoading={isLoading}
+                      statisticsReady={event?.statisticsReady}
                     />
                     <GroupMatchCard
                       percent={event?.playlistMatchPercent}
                       isLoading={isLoading}
+                      statisticsReady={event?.statisticsReady}
                     />
                     <TasteContributionsCard
                       contributions={event?.contributions ?? []}
                       isLoading={isLoading}
+                      statisticsReady={event?.statisticsReady}
                     />
                   </>
                 ) : (

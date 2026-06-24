@@ -5,6 +5,7 @@ import type { TasteContribution } from "@/types/event";
 interface TasteContributionsCardProps {
   contributions: TasteContribution[];
   isLoading?: boolean;
+  statisticsReady?: boolean;
   className?: string;
 }
 
@@ -36,6 +37,7 @@ const SkeletonRow = () => (
 const TasteContributionsCard = ({
   contributions,
   isLoading,
+  statisticsReady = true,
   className,
 }: TasteContributionsCardProps) => {
   return (
@@ -49,7 +51,7 @@ const TasteContributionsCard = ({
         Taste Contributions
       </header>
       <ul className="flex flex-col gap-3">
-        {isLoading
+        {isLoading || !statisticsReady
           ? Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)
           : contributions.map((row) => (
               <ContributionRow key={row.participantId} row={row} />

@@ -12,26 +12,36 @@ def test_playlist_state_definition():
     assert 'attempts' in hints
     assert 'final_playlist' in hints
 
+def test_playlist_state_has_target_wildcards():
+    from app.models.state import PlaylistState
+    s = PlaylistState(event_description="x", target_wildcards=12)
+    assert s.target_wildcards == 12
+
 import asyncio
 from app.workflows.playlist_generator import PlaylistGraphBuilder
 
 @pytest.mark.asyncio
 async def test_initial_fetch():
-    async def mock_db(query): return [{"title": "DB1", "artist": "A1"}]
+    # DB song carries a strong-match distance so it stays in the spine.
+    async def mock_db(query): return [{"title": "DB1", "artist": "A1", "distance": 0.1}]
     async def mock_llm(prompt, count, rejected, context, anchor_artists):
         assert len(context) == 1
         assert context[0]["title"] == "DB1"
         assert anchor_artists == ["A1"]
         return [{"title": "L1", "artist": "A2"}] * count
-    
-    # Testing with parameterized wildcards
-    builder = PlaylistGraphBuilder(mock_llm, mock_db, None, target_wildcards=3)
+
+    # playlist_size 4, 1 strong match -> 3 wildcards
+    builder = PlaylistGraphBuilder(
+        mock_llm, mock_db, None,
+        target_playlist_size=4, min_wildcards=1, strong_match_margin=0.10,
+    )
     state = PlaylistState(event_description="test event")
-    
+
     result = await builder.initial_fetch(state)
-    
+
     assert len(result["db_songs"]) == 1
     assert len(result["candidate_wildcards"]) == 3
+    assert result["target_wildcards"] == 3
     assert result["attempts"] == 1
 
 @pytest.mark.asyncio
@@ -69,23 +79,24 @@ async def test_regenerate():
         assert context == []
         return [{"title": "New L1", "artist": "A1"}] * count
 
-    builder = PlaylistGraphBuilder(mock_llm, None, None, target_wildcards=3)
+    builder = PlaylistGraphBuilder(mock_llm, None, None)
     state = PlaylistState(
         event_description="event",
+        target_wildcards=3,
         validated_wildcards=[{"title": "V1", "artist": "A1"}],
         rejected_wildcards=["Bad Song by Bad Artist"],
         attempts=1
     )
-    
+
     result = await builder.regenerate(state)
     assert len(result["candidate_wildcards"]) == 2
     assert result["attempts"] == 2
 
 def test_should_finalize():
-    builder = PlaylistGraphBuilder(None, None, None, target_wildcards=5, max_attempts=3)
-    assert builder.should_finalize(PlaylistState(event_description="x", validated_wildcards=[{"x":1}]*5, attempts=1)) == "merge_and_shuffle"
-    assert builder.should_finalize(PlaylistState(event_description="x", validated_wildcards=[{"x":1}]*2, attempts=3)) == "merge_and_shuffle"
-    assert builder.should_finalize(PlaylistState(event_description="x", validated_wildcards=[{"x":1}]*2, attempts=2)) == "regenerate"
+    builder = PlaylistGraphBuilder(None, None, None, max_attempts=3)
+    assert builder.should_finalize(PlaylistState(event_description="x", target_wildcards=5, validated_wildcards=[{"x":1}]*5, attempts=1)) == "merge_and_shuffle"
+    assert builder.should_finalize(PlaylistState(event_description="x", target_wildcards=5, validated_wildcards=[{"x":1}]*2, attempts=3)) == "merge_and_shuffle"
+    assert builder.should_finalize(PlaylistState(event_description="x", target_wildcards=5, validated_wildcards=[{"x":1}]*2, attempts=2)) == "regenerate"
 
 @pytest.mark.asyncio
 async def test_merge_and_shuffle():

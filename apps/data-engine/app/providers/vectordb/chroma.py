@@ -3,6 +3,7 @@ from typing import List
 import chromadb
 from app.providers.protocols import EmbeddingProvider
 from app.providers.exceptions import CollectionMismatchError
+from app.services.embedding_text import build_embedding_text
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +12,9 @@ class ChromaVectorStore:
     def __init__(self, collection_name: str):
         self.collection_name = collection_name
         self._client = chromadb.Client()
-        self._collection = self._client.create_collection(name=collection_name)
+        self._collection = self._client.create_collection(
+            name=collection_name, metadata={"hnsw:space": "cosine"}
+        )
         try:
             self._expected_dims = int(collection_name.rsplit("_", 1)[-1])
         except ValueError:
@@ -33,18 +36,7 @@ class ChromaVectorStore:
         for song in songs_with_features:
             title = song.get("title", "")
             artist = song.get("artist", "")
-            lyrics = lyrics_map.get(title, "")
-
-            if "embedding_text" in song:
-                text = f"{song['embedding_text']}\n\nLyrics Snippet:\n{lyrics[:500]}..."
-            else:
-                text = (
-                    f"Title: {title}\nArtist: {artist}\n"
-                    f"Energy: {song.get('energy_desc', '')}\n"
-                    f"Mood: {song.get('mood_desc', '')}\n"
-                    f"Tags: {', '.join(song.get('vibe_tags', []))}\n"
-                    f"Lyrics: {lyrics[:500]}..."
-                )
+            text = build_embedding_text(song)
             logger.debug(
                 f"[chroma] embedding text for '{title}' by '{artist}' "
                 f"({len(text)} chars): {text[:150]!r}..."
@@ -101,6 +93,7 @@ class ChromaVectorStore:
         embedder: EmbeddingProvider,
         n_results: int,
         max_distance: float,
+        event_id: str = "",
     ) -> List[dict]:
         query_embedding = embedder.embed_query(query_text)
         if not query_embedding:
@@ -138,4 +131,7 @@ class ChromaVectorStore:
                 f"| cosine_dist={distance:.4f}"
             )
 
-        return filtered if filtered else retrieved
+        # No fallback: if nothing clears max_distance, return [] so the caller
+        # can treat a weak pool as the trigger for vibe-carrying generation,
+        # rather than silently surfacing mismatched library songs.
+        return filtered

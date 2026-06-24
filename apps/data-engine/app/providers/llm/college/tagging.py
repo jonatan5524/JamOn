@@ -24,10 +24,9 @@ class CollegeTaggingProvider:
         return results
 
     def _tag_batch(self, songs: List[dict]) -> List[dict]:
-        prompt = _load_prompt("audio_features_prompt.txt").replace(
-            "{songs_list}", json.dumps(songs, indent=2)
-        )
-        
+        system_text = _load_prompt("audio_features_system.txt")
+        user_text = _load_prompt("audio_features_user.txt").replace("{songs_list}", json.dumps(songs, indent=2))
+
         try:
             with httpx.Client(
                 auth=(settings.COLLEGE_USERNAME, settings.COLLEGE_PASSWORD),
@@ -35,7 +34,7 @@ class CollegeTaggingProvider:
             ) as client:
                 response = client.post(
                     f"{settings.COLLEGE_BASE_URL}/api/generate",
-                    json={"model": "llama3.1:8b", "prompt": prompt, "format": "json", "stream": False},
+                    json={"model": "llama3.1:8b", "system": system_text, "prompt": user_text, "format": "json", "stream": False},
                 )
                 response.raise_for_status()
                 

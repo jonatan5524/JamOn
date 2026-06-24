@@ -39,6 +39,294 @@ Personalized music recommendation engine. Generates event-specific Spotify playl
 └─────────────────────────────────────────────────────────┘
 ```
 
+## RAG Pipeline (Inference Flow)
+
+How a single "Generate Playlist" request flows through the data engine:
+
+```
+User: "Late night melancholic study session"
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 1 — HyDE Query Expansion                          │
+│                                                         │
+│  The raw event description is a SHORT, VAGUE phrase.    │
+│  Cosine similarity works best when document and query   │
+│  are in the SAME semantic space. A short phrase is NOT  │
+│  in the same space as a rich tag+lyrics embedding.      │
+│                                                         │
+│  HyDE = Hypothetical Document Embeddings                │
+│  LLM rewrites the query into a FAKE SONG DESCRIPTION:   │
+│  "Slow tempo, acoustic, introspective lyrics, low       │
+│   energy, sad mood, lo-fi, rainy night vibe…"           │
+│                                                         │
+│  This synthetic "document" is now in the same space     │
+│  as the real song embeddings in the vector store.       │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 2 — Vector Store Query (max_distance gate)        │
+│                                                         │
+│  Embed the expanded query → query pgvector with         │
+│  cosine distance (<=>), fetch top-N candidates          │
+│  scoped to THIS EVENT's participants' libraries.        │
+│                                                         │
+│  Each song gets a cosine distance in range [0.0, 2.0]   │
+│  (practically ~0.05–0.80 for real text embeddings).     │
+│                                                         │
+│  max_distance = 0.7  ← absolute quality gate            │
+│                                                         │
+│  Song A:  dist=0.22  ✅ PASS                            │
+│  Song B:  dist=0.31  ✅ PASS                            │
+│  Song C:  dist=0.45  ✅ PASS                            │
+│  Song D:  dist=0.71  ❌ FAIL → dropped                  │
+│  Song E:  dist=0.85  ❌ FAIL → dropped                  │
+│                                                         │
+│  WHY max_distance? Without it, songs that are           │
+│  semantically UNRELATED to the event still return       │
+│  because the DB always returns the top-N closest,       │
+│  even if "closest" is still very far away.              │
+└─────────────────────────┬───────────────────────────────┘
+                          │  (e.g. Songs A, B, C returned)
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 3 — Strong Spine Identification (strong_margin)   │
+│                                                         │
+│  Songs that passed max_distance are sorted by distance  │
+│  (ascending = best fit first). Now we cut a "spine"     │
+│  of truly excellent matches.                            │
+│                                                         │
+│  best_distance = 0.22 (Song A, the closest)             │
+│  strong_match_margin = 0.10                             │
+│  cutoff = 0.22 + 0.10 = 0.32                           │
+│                                                         │
+│  Song A: dist=0.22  ≤ 0.32  → STRONG ✅                │
+│  Song B: dist=0.31  ≤ 0.32  → STRONG ✅                │
+│  Song C: dist=0.45  > 0.32  → weak, excluded           │
+│                                                         │
+│  WHY relative margin (not another absolute threshold)?  │
+│                                                         │
+│  Cosine distances for text embeddings cluster in a      │
+│  NARROW BAND (roughly 0.20–0.35 for real matches).      │
+│  A fixed absolute gate like "< 0.30" is brittle:        │
+│  - Too low  → empty spine (all songs excluded)          │
+│  - Too high → entire library qualifies = no signal      │
+│                                                         │
+│  A RELATIVE gate (best + margin) always picks the       │
+│  best-fitting CLUSTER for this specific query,          │
+│  adapting to where results land on any given day.       │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 4 — Dynamic Wildcard Target                       │
+│                                                         │
+│  target = playlist_size (20) - len(strong_songs)        │
+│  (but at least min_wildcards=3)                         │
+│                                                         │
+│  Strong songs: 2  →  wildcards = max(3, 20-2) = 18      │
+│  Strong songs: 17 →  wildcards = max(3, 20-17) = 3      │
+│                                                         │
+│  WHY? If your library is a perfect fit, the LLM         │
+│  barely needs to invent anything. If it's a weak fit,   │
+│  the LLM carries most of the playlist. The system       │
+│  self-balances instead of always asking for 10 LLM      │
+│  songs regardless of library match quality.             │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 5 — LLM DJ Generation + Overprovision             │
+│                                                         │
+│  The DJ (Gemini) is asked for:                          │
+│  requested = round(target_wildcards × overprovision)    │
+│                                                         │
+│  overprovision_factor > 1.0 means ask for MORE than     │
+│  needed — because some wildcards will fail Spotify       │
+│  URI validation (song doesn't exist on Spotify).        │
+│                                                         │
+│  e.g. need 5, overprovision=1.4 → ask for 7            │
+│  → 2 fail Spotify validation → still get 5 good ones   │
+│                                                         │
+│  Anchor artists (from the FULL library, not just the    │
+│  strong spine) are passed to the DJ so wildcards        │
+│  respect the user's taste fingerprint.                  │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 6 — Validate → Retry Loop (LangGraph)             │
+│                                                         │
+│  validate: hit Spotify search for each wildcard.        │
+│  should_finalize:                                       │
+│    - enough validated AND                               │
+│    - OR max_attempts reached → merge_and_shuffle        │
+│    - else → regenerate (pass rejected list so LLM       │
+│      doesn't suggest the same bad songs again)          │
+│                                                         │
+│                 ┌──────────────────┐                    │
+│  initial_fetch─►│    validate      │                    │
+│                 └────────┬─────────┘                    │
+│                          │ should_finalize               │
+│                    ┌─────┴──────┐                       │
+│                  needs        done                       │
+│                  more          │                         │
+│                    │           ▼                         │
+│               regenerate  merge_and_shuffle ──► END      │
+│                    │                                     │
+│                    └──────► validate (loop)              │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 7 — Merge & Shuffle                               │
+│                                                         │
+│  spine_songs (library) + validated_wildcards (AI)       │
+│  → deduplicate → trim to target_playlist_size           │
+│  → shuffle (hide the seam between library/AI songs)     │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Key Parameters
+
+| Concept | Value | Why |
+|---|---|---|
+| **HyDE** | rewrites short query → rich synthetic doc | Short event phrases are not in the same embedding space as tag+lyrics docs; HyDE bridges the semantic gap |
+| **`max_distance`** | `0.7` (absolute) | Vector stores always return top-N even when the pool is irrelevant; this is the hard floor — "don't return garbage" |
+| **`strong_match_margin`** | `0.10` (relative) | Embedding distances cluster in a narrow band (~0.20–0.35); a fixed absolute threshold is fragile, a relative one always picks the best cluster for this query |
+| **Strong spine** | songs within margin of best match | The songs that actually carry the event's vibe — they become guaranteed slots in the final playlist |
+| **Dynamic wildcard target** | `max(min_wildcards, playlist_size - spine_size)` | Library quality drives how much AI fills in; weak library match → AI does heavy lifting, strong match → AI barely appears |
+| **`overprovision_factor`** | `> 1.0` | Ask the DJ for more wildcards than needed to absorb Spotify validation failures without falling short of the target |
+| **Retry loop** | max 3 attempts | Wildcards that fail Spotify URI lookup are fed back to the DJ so it doesn't repeat the same hallucinations |
+
+## Eval & Auto-Improvement Loop
+
+How the eval loop tunes the RAG pipeline's numeric parameters and LLM prompts automatically:
+
+```
+                  ┌─────────────────────────────────────────┐
+                  │  Inputs                                  │
+                  │  - mock song library (20 songs with      │
+                  │    lyrics + vibe tags, or real user       │
+                  │    library via --event-id)               │
+                  │  - hardcoded training events             │
+                  │  - held-out events (never seen by        │
+                  │    optimizer)                            │
+                  └────────────────┬────────────────────────┘
+                                   │
+                                   ▼
+┌──────────────────────────────────────────────────────────────┐
+│  PHASE 1 — Parameter Grid Search  (no LLM judge, cheap)      │
+│                                                              │
+│  Exhaustively try every combination of:                      │
+│    n_results:           [5, 15, 30]                          │
+│    max_distance:        [0.5, 0.65, 0.8]                     │
+│    target_wildcards:    [3, 5, 7]                            │
+│    strong_match_margin: [0.06, 0.10, 0.14]                   │
+│  → 81 combinations total                                     │
+│                                                              │
+│  Each combo runs ALL training events through the full        │
+│  RAG pipeline (HyDE → vector search → DJ → validate).       │
+│  No LLM judge yet — scored on three cheap metrics only:      │
+│                                                              │
+│    acceptance_rate   = validated_wildcards / target          │
+│    retrieval_relevance = precision × recall of spine         │
+│       precision = 1 − mean_cosine_distance of spine songs    │
+│       recall    = spine_size / n_results_requested           │
+│    size_fulfillment  = final_playlist_size / target_size     │
+│                                                              │
+│    partial = 0.20×acceptance + 0.15×relevance + 0.15×size   │
+│                                                              │
+│  GUARDRAIL: if EVERY event returns an empty spine            │
+│  (library contributes nothing), score is forced to 0.0 —    │
+│  mistuned absolute thresholds can hit 0.67 composite         │
+│  while retrieval_relevance is secretly 0.00.                 │
+│                                                              │
+│  Saves best_params.json after each improvement.             │
+│                 ↓                                            │
+│           best_params ★                                      │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  PHASE 2 — Prompt Hill-Climbing  (with LLM judge, expensive) │
+│                                                              │
+│  Params are now frozen at best_params from Phase 1.          │
+│  The loop alternates between mutating HyDE and DJ prompts:   │
+│                                                              │
+│   iteration 0: optimize HyDE prompt                          │
+│   iteration 1: optimize DJ prompt                            │
+│   iteration 2: optimize HyDE prompt  … (N iterations)       │
+│                                                              │
+│  Each iteration:                                             │
+│                                                              │
+│  1. Run all training events → collect failures               │
+│     (events where alignment < 0.6 OR acceptance < 0.6)      │
+│                                                              │
+│  2. Full composite score (now includes LLM judge):           │
+│       composite = 0.45×alignment                            │
+│                 + 0.25×acceptance_rate                       │
+│                 + 0.15×retrieval_relevance                   │
+│                 + 0.15×size_fulfillment                      │
+│       alignment = NIM Llama-70b rates playlist 0–10          │
+│                   ("does this tracklist fit the event?")     │
+│                                                              │
+│  3. Meta-prompt sends current prompt + failure list to       │
+│     Llama-70b: "rewrite this prompt to fix these failures"   │
+│     → mutated prompt candidate                               │
+│                                                              │
+│  4. Re-run all events with mutated prompt → new score        │
+│     score > best?  → accept, update failures list            │
+│     score ≤ best?  → revert, keep current                    │
+│                                                              │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  score(hyde, dj)                                    │    │
+│  │       │                                             │    │
+│  │  mutate(hyde)──►score(hyde', dj)──►accept/revert   │    │
+│  │       │                                             │    │
+│  │  mutate(dj)────►score(hyde, dj')──►accept/revert   │    │
+│  │       │                    … N times                │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                              │
+│  Prompt repair: if the LLM drops a required placeholder      │
+│  (e.g. {event_description}) it re-appends it rather than    │
+│  discarding the whole mutation.                              │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  HOLDOUT VALIDATION                                          │
+│                                                              │
+│  Run the winning (params + prompts) on held-out events the   │
+│  optimizer NEVER saw.                                        │
+│                                                              │
+│  Reports train−holdout gap.                                  │
+│  gap > 0.10 → ⚠ possible overfitting warning                │
+│                                                              │
+│  Writes to eval/optimized/:                                  │
+│    params.json                ← best numeric params          │
+│    hyde_prompt.txt            ← best HyDE prompt             │
+│    playlist_generation_prompt.txt ← best DJ prompt           │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Scoring Metrics Explained
+
+| Metric | Weight | Formula | What it catches |
+|---|---|---|---|
+| **alignment** | 45% | NIM Llama-70b rates playlist 0–10 | Wrong vibe — energetic songs for a quiet event |
+| **acceptance_rate** | 25% | `validated / target` wildcards | DJ hallucinating songs Spotify can't find |
+| **retrieval_relevance** | 15% | `(1 − mean_dist) × (spine_size / n_results)` | max_distance / margin set so tight the library contributes nothing |
+| **size_fulfillment** | 15% | `final_size / target_size` | Configs that produce tiny but "high quality" playlists |
+
+**Partial score** (Phase 1, no judge): `0.20×acceptance + 0.15×relevance + 0.15×size` — cheap enough to run 81 grid combos.  
+**Full composite** (Phase 2, with judge): adds `0.45×alignment` — expensive, only runs once params are locked.
+
+### Stub Validator
+
+In eval, Spotify URI resolution is replaced by a deterministic hash-based stub that rejects ~30% of wildcards (matching observed production failure rate). This keeps `acceptance_rate` meaningful instead of a flat constant.
+
 ## Quick Start
 
 ### Prerequisites

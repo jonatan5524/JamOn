@@ -1,6 +1,7 @@
 import time
 import threading
 import logging
+import httpx
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception
 from google.genai import errors
 
@@ -53,6 +54,8 @@ def is_retryable_exception(e):
     if isinstance(e, errors.ServerError):
         return True
     if isinstance(e, errors.ClientError) and e.code == 429:
+        return True
+    if isinstance(e, (OSError, httpx.TransportError)):  # ssl.SSLError, httpx.ConnectError, etc.
         return True
     return False
 

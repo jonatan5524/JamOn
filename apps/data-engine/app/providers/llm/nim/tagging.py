@@ -17,6 +17,16 @@ def _load_prompt(filename: str) -> str:
         return f.read()
 
 
+def _build_messages(songs: list) -> list:
+    songs_json = json.dumps(songs, indent=2)
+    system_text = _load_prompt("audio_features_system.txt")
+    user_text = _load_prompt("audio_features_user.txt").replace("{songs_list}", songs_json)
+    return [
+        {"role": "system", "content": system_text},
+        {"role": "user", "content": user_text},
+    ]
+
+
 class NimTaggingProvider:
     def __init__(self):
         self._client = openai.OpenAI(
@@ -36,9 +46,7 @@ class NimTaggingProvider:
 
     def _tag_batch(self, songs: List[dict]) -> List[dict]:
         logger.info(f"[nim-tagging] batch of {len(songs)} songs: {[s.get('title', '?') for s in songs]}")
-        prompt = _load_prompt("audio_features_prompt.txt").replace(
-            "{songs_list}", json.dumps(songs, indent=2)
-        )
+        messages = _build_messages(songs)
         # NOTE: do NOT set response_format={"type":"json_object"} here. The prompt
         # instructs the model to return a top-level JSON ARRAY, but json_object mode
         # requires a top-level object and rejects/wraps arrays. Rely on the prompt
@@ -46,7 +54,7 @@ class NimTaggingProvider:
         try:
             response = self._client.chat.completions.create(
                 model=settings.NIM_TAGGING_MODEL,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
             )
             
             choice = response.choices[0]
@@ -62,7 +70,14 @@ class NimTaggingProvider:
             if fence_match:
                 logger.debug(f"[nim-tagging] extracted JSON from {'```json' if 'json' in content[fence_match.start():fence_match.start()+7] else '```'} fence")
             json_str = fence_match.group(1).strip() if fence_match else content.strip()
-            parsed = json.loads(json_str)
+            if not json_str:
+                logger.error(f"[nim-tagging] empty json_str after extraction; raw content ({len(content)} chars): {content!r}")
+                raise TaggingError("NIM returned empty JSON body after fence extraction")
+            try:
+                parsed = json.loads(json_str)
+            except json.JSONDecodeError as parse_err:
+                logger.error(f"[nim-tagging] JSON parse failed ({parse_err}); raw content ({len(content)} chars): {content!r}")
+                raise TaggingError(f"NIM JSON parse error: {parse_err}") from parse_err
             result = parsed if isinstance(parsed, list) else [parsed]
             logger.info(f"[nim-tagging] parsed {len(result)} song(s) from response")
             for item in result:

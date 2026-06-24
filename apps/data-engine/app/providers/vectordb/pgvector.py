@@ -8,6 +8,14 @@ logger = logging.getLogger(__name__)
 
 
 class PgVectorStore:
+    """
+    IMPLEMENTATION CONTRACT (must match ChromaVectorStore):
+    - Distance must be cosine (use the pgvector `<=>` operator), NOT L2.
+    - query_songs returns ONLY rows within max_distance, with `distance`
+      attached to each result. No fallback: when nothing clears the threshold,
+      return [] so the graph treats a weak pool as a generation trigger.
+    """
+
     def __init__(self, collection_name: str):
         self.collection_name = collection_name
 
@@ -19,6 +27,9 @@ class PgVectorStore:
         max_distance: float,
         event_id: str,
     ) -> List[dict]:
+        """Cosine (`<=>`) similarity search. Returns only rows within
+        max_distance with `distance` attached; no fallback (returns [] on a
+        weak pool)."""
         query_vector = embedder.embed_query(query_text)
         if not query_vector:
             return []
@@ -74,4 +85,4 @@ class PgVectorStore:
                 f"| cosine_dist={meta['distance']:.4f}"
             )
 
-        return filtered if filtered else retrieved
+        return filtered

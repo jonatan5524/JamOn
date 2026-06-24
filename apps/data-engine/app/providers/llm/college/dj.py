@@ -1,12 +1,28 @@
 import json
 import logging
 import os
+import re
 from typing import List
 import httpx
 from app.core.config import settings
 from app.providers.exceptions import GenerationError
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_json_response(text: str):
+    """Try json.loads; on failure, extract the first [...] or {...} block."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        for pattern in (r'\[.*?\]', r'\{.*?\}'):
+            match = re.search(pattern, text, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group())
+                except json.JSONDecodeError:
+                    continue
+    return None
 
 
 def _load_prompt(filename: str) -> str:
@@ -47,14 +63,18 @@ class CollegeDJProvider:
         try:
             with httpx.Client(
                 auth=(settings.COLLEGE_USERNAME, settings.COLLEGE_PASSWORD),
-                timeout=60.0,
+                timeout=120.0,
             ) as client:
                 response = client.post(
                     f"{settings.COLLEGE_BASE_URL}/api/generate",
                     json={"model": "gemma3:12b", "prompt": prompt, "format": "json", "stream": False},
                 )
                 response.raise_for_status()
-                parsed = json.loads(response.json()["response"])
+                raw = response.json()["response"]
+                parsed = _parse_json_response(raw)
+                if parsed is None:
+                    logger.warning("College generate_playlist: could not parse JSON, returning empty list")
+                    return []
                 if isinstance(parsed, list):
                     return parsed
                 # model may wrap in {"playlist": [...]} or return a single song dict
@@ -62,6 +82,8 @@ class CollegeDJProvider:
                     if key in parsed and isinstance(parsed[key], list):
                         return parsed[key]
                 return [parsed]
+        except GenerationError:
+            raise
         except Exception as e:
             logger.error(f"College generate_playlist failed: {e}")
             raise GenerationError(str(e)) from e

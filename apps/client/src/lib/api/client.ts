@@ -1,4 +1,9 @@
 import type { ApiErrorBody } from "@/types/api";
+import {
+  getAccessToken,
+  onAuthFailure,
+  refreshAccessToken,
+} from "./auth-tokens";
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_URL ?? "http://127.0.0.1:3000";
@@ -23,19 +28,37 @@ export const apiFetch = async <T>(
   path: string,
   { body, token, headers, ...rest }: RequestOptions = {},
 ): Promise<T> => {
-  const finalHeaders: Record<string, string> = {
-    Accept: "application/json",
-    ...(headers as Record<string, string> | undefined),
+  const buildHeaders = (authToken: string | null): Record<string, string> => {
+    const finalHeaders: Record<string, string> = {
+      Accept: "application/json",
+      ...(headers as Record<string, string> | undefined),
+    };
+    if (body !== undefined) finalHeaders["Content-Type"] = "application/json";
+    if (authToken) finalHeaders.Authorization = `Bearer ${authToken}`;
+    return finalHeaders;
   };
-  if (body !== undefined) finalHeaders["Content-Type"] = "application/json";
-  const authToken = token ?? localStorage.getItem("jamon_access_token");
-  if (authToken) finalHeaders.Authorization = `Bearer ${authToken}`;
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
-    headers: finalHeaders,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const serializedBody =
+    body !== undefined ? JSON.stringify(body) : undefined;
+
+  const send = (authToken: string | null) =>
+    fetch(`${API_BASE_URL}${path}`, {
+      ...rest,
+      headers: buildHeaders(authToken),
+      body: serializedBody,
+    });
+
+  let response = await send(token ?? getAccessToken());
+
+  // Only auto-refresh when relying on the stored token (not an explicit one).
+  if (response.status === 401 && token == null) {
+    try {
+      const refreshed = await refreshAccessToken();
+      response = await send(refreshed);
+    } catch {
+      onAuthFailure();
+    }
+  }
 
   if (!response.ok) {
     let parsed: ApiErrorBody | null = null;

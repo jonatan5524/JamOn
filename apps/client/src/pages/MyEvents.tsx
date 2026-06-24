@@ -9,11 +9,19 @@ import EventCardSkeleton from "@/components/events/EventCardSkeleton";
 import EmptyEvents from "@/components/events/EmptyEvents";
 import JoinEventDialog from "@/components/events/JoinEventDialog";
 import CreateEventDialog from "@/components/events/CreateEventDialog";
+import ErrorState from "@/components/ui/error-state";
 import type { EventSummary } from "@/types/event";
 
 const MyEvents = () => {
   const navigate = useNavigate();
-  const { data: events, isLoading, isError } = useEventList();
+  const {
+    data: events,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = useEventList();
   const [joinOpen, setJoinOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -50,9 +58,12 @@ const MyEvents = () => {
           </motion.div>
 
           {isError ? (
-            <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-6 text-sm text-destructive">
-              Failed to load events.
-            </div>
+            <ErrorState
+              error={error}
+              title="Couldn't load your events"
+              onRetry={() => refetch()}
+              isRetrying={isFetching}
+            />
           ) : isLoading || !events ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 3 }).map((_, i) => (

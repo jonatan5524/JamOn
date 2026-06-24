@@ -14,25 +14,22 @@ from app.models.api import (
 from app.models.song import Track
 from app.services.rag import RagEngine
 from app.services import lyrics
+from app.services.embedding_text import build_embedding_text
 from app.services.enrichment import enrich_song
 from app.services.validator import validate_spotify_uri_via_nestjs
 from app.services.db import fetch_event_description, fetch_event_songs
 from app.workflows.playlist_generator import PlaylistGraphBuilder
+from app.core.tuned_params import load_tuned_params, scale_params_to_target, TARGET_PLAYLIST_SIZE
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _build_embedding_text(song: dict, lyrics: str) -> str:
-    if song.get("embedding_text"):
-        return f"{song['embedding_text']}\n\nLyrics Snippet:\n{lyrics[:500]}..."
-    return (
-        f"Title: {song.get('title', '')}\nArtist: {song.get('artist', '')}\n"
-        f"Energy: {song.get('energy_desc', '')}\n"
-        f"Mood: {song.get('mood_desc', '')}\n"
-        f"Tags: {', '.join(song.get('vibe_tags', []))}\n"
-        f"Lyrics: {lyrics[:500]}..."
-    )
+def _library_anchor_artists(songs) -> List[str]:
+    """Deduplicated artist list from the full participant library. Used to
+    anchor wildcard generation to the group's taste even when no library song
+    matches the requested vibe."""
+    return list({s["artist"] for s in songs if s["artist"]})
 
 
 @router.post(
@@ -69,8 +66,16 @@ async def recommend(http_request: Request, request: RecommendRequest):
         hyde=providers.llm.hyde,
     )
 
+    tuned = scale_params_to_target(load_tuned_params(), TARGET_PLAYLIST_SIZE)
+    logger.info(f"Using tuned params (scaled to {TARGET_PLAYLIST_SIZE} songs): {tuned}")
+
     async def db_fetch_wrapper(query: str):
-        return await rag.query_songs(query, event_id=request.event_id, n_results=20)
+        return await rag.query_songs(
+            query,
+            event_id=request.event_id,
+            n_results=tuned["n_results"],
+            max_distance=tuned["max_distance"],
+        )
 
     async def llm_gen_wrapper(prompt: str, count: int, rejected: List[str], context: List[dict], anchor_artists: List[str]):
         return await asyncio.to_thread(
@@ -81,14 +86,20 @@ async def recommend(http_request: Request, request: RecommendRequest):
         llm_generator=llm_gen_wrapper,
         db_fetcher=db_fetch_wrapper,
         uri_validator=validate_spotify_uri_via_nestjs,
-        target_wildcards=5,
+        target_playlist_size=TARGET_PLAYLIST_SIZE,
+        min_wildcards=3,
+        strong_match_margin=tuned["strong_match_margin"],
         max_attempts=3,
+        overprovision_factor=2.0,
     )
     workflow = builder.build()
     logger.info("LangGraph workflow built — invoking...")
 
     try:
-        final_state = await workflow.ainvoke({"event_description": event_description})
+        final_state = await workflow.ainvoke({
+            "event_description": event_description,
+            "anchor_artists": _library_anchor_artists(song_rows),
+        })
         playlist = final_state.get("final_playlist", [])
     except Exception as e:
         logger.error(f"Graph execution error: {e}")
@@ -177,12 +188,7 @@ async def ingest_batch(http_request: Request, tracks: List[Track]):
         raise HTTPException(status_code=500, detail="Failed to tag songs")
     logger.info(f"Tagging complete — {len(songs_with_features)} songs tagged")
 
-    lyrics_map = {e.title: e.lyrics_snippet or "" for e in enriched_songs}
-
-    texts = [
-        _build_embedding_text(song, lyrics_map.get(song.get("title", ""), ""))
-        for song in songs_with_features
-    ]
+    texts = [build_embedding_text(song) for song in songs_with_features]
 
     logger.info(f"Creating embeddings for {len(texts)} songs...")
     vectors = await asyncio.to_thread(providers.llm.embedding.embed_documents, texts)

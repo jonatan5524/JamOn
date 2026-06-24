@@ -91,6 +91,15 @@ export class PlaylistService {
       }
     }
 
+    const seenUris = new Set<string>();
+    const uniqueResolvedTracks = resolvedTracks.filter((track) => {
+      if (seenUris.has(track.uri)) return false;
+      seenUris.add(track.uri);
+      return true;
+    });
+    resolvedTracks.length = 0;
+    resolvedTracks.push(...uniqueResolvedTracks);
+
     if (resolvedTracks.length === 0) {
       throw new HttpException(
         {

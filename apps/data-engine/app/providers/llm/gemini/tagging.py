@@ -24,14 +24,15 @@ class GeminiTaggingProvider:
     @with_resilience
     def tag_songs(self, songs: List[dict]) -> List[dict]:
         logger.info(f"[gemini-tagging] tagging {len(songs)} songs: {[s.get('title', '?') for s in songs]}")
-        prompt_template = _load_prompt("audio_features_prompt.txt")
-        prompt = prompt_template.replace("{songs_list}", json.dumps(songs, indent=2))
-        logger.debug(f"[gemini-tagging] prompt size: {len(prompt)} chars")
+        system_text = _load_prompt("audio_features_system.txt")
+        user_text = _load_prompt("audio_features_user.txt").replace("{songs_list}", json.dumps(songs, indent=2))
+        logger.debug(f"[gemini-tagging] prompt size: {len(user_text)} chars")
         try:
             response = self._client.models.generate_content(
                 model=settings.AUDIO_FEATURES_MODEL,
-                contents=prompt,
+                contents=user_text,
                 config=types.GenerateContentConfig(
+                    system_instruction=system_text,
                     response_mime_type="application/json"
                 ),
             )

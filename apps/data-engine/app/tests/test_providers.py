@@ -2,6 +2,15 @@ import pytest
 from unittest.mock import MagicMock
 
 
+def test_tuned_params_uses_strong_match_margin_not_distance():
+    from app.core.tuned_params import load_tuned_params, DEFAULTS
+    assert "strong_match_margin" in DEFAULTS
+    assert "strong_match_distance" not in DEFAULTS
+    params = load_tuned_params()
+    assert "strong_match_margin" in params
+    assert isinstance(params["strong_match_margin"], float)
+
+
 def test_exceptions_are_exception_subclasses():
     from app.providers.exceptions import (
         ConfigurationError, EmbeddingError, TaggingError,
@@ -272,15 +281,11 @@ def test_chroma_vector_store_raises_on_dimension_mismatch():
             store.add_songs(songs, {}, bad_embedder)
 
 
-def test_pgvector_store_raises_not_implemented():
+def test_pgvector_store_is_read_only():
     from app.providers.vectordb.pgvector import PgVectorStore
-    from unittest.mock import MagicMock
     store = PgVectorStore(collection_name="songs_gemini_768")
-    with pytest.raises(NotImplementedError):
-        store.add_songs([], {}, MagicMock())
-    with pytest.raises(NotImplementedError):
-        store.query_songs("test", MagicMock(), 5, 0.7)
-    assert store.song_exists("any") is False
+    assert not hasattr(store, "add_songs")
+    assert not hasattr(store, "song_exists")
 
 
 # Task 8: VectorStore Factory
@@ -295,16 +300,13 @@ def test_vectorstore_factory_creates_chroma_with_correct_name():
         assert store.collection_name == "songs_gemini_768"
 
 
-def test_vectorstore_factory_creates_pgvector_stub():
-    from unittest.mock import patch
-    with patch("chromadb.Client"):
-        from app.providers.vectordb.factory import VectorStoreFactory
-        from app.providers.containers import EmbeddingConfig
-        from app.providers.vectordb.chroma import ChromaVectorStore
-        # pgvector is not yet implemented — factory falls back to Chroma
-        store = VectorStoreFactory.create("pgvector", EmbeddingConfig(provider_id="college", dims=384))
-        assert isinstance(store, ChromaVectorStore)
-        assert store.collection_name == "songs_college_384"
+def test_vectorstore_factory_creates_pgvector():
+    from app.providers.vectordb.factory import VectorStoreFactory
+    from app.providers.containers import EmbeddingConfig
+    from app.providers.vectordb.pgvector import PgVectorStore
+    store = VectorStoreFactory.create("pgvector", EmbeddingConfig(provider_id="college", dims=384))
+    assert isinstance(store, PgVectorStore)
+    assert store.collection_name == "songs_college_384"
 
 
 def test_vectorstore_factory_raises_on_unknown():
@@ -316,20 +318,6 @@ def test_vectorstore_factory_raises_on_unknown():
 
 
 # Task 9: Refactor RagEngine
-def test_rag_engine_add_songs_delegates_to_vector_store():
-    from unittest.mock import MagicMock
-    from app.services.rag import RagEngine
-    mock_store = MagicMock()
-    mock_embedder = MagicMock()
-    mock_dj = MagicMock()
-    mock_hyde = MagicMock()
-    rag = RagEngine(vector_store=mock_store, embedder=mock_embedder, dj=mock_dj, hyde=mock_hyde)
-    songs = [{"title": "T", "artist": "A"}]
-    lyrics = {"T": "lyrics"}
-    rag.add_songs(songs, lyrics)
-    mock_store.add_songs.assert_called_once_with(songs, lyrics, mock_embedder)
-
-
 @pytest.mark.asyncio
 async def test_rag_engine_query_songs_expands_then_queries():
     from unittest.mock import MagicMock
@@ -341,9 +329,9 @@ async def test_rag_engine_query_songs_expands_then_queries():
     mock_hyde = MagicMock()
     mock_hyde.expand_query.return_value = "expanded query"
     rag = RagEngine(vector_store=mock_store, embedder=mock_embedder, dj=mock_dj, hyde=mock_hyde)
-    result = await rag.query_songs("party vibes", n_results=5, max_distance=0.7)
+    result = await rag.query_songs("party vibes", event_id="evt-1", n_results=5, max_distance=0.7)
     mock_hyde.expand_query.assert_called_once_with("party vibes")
-    mock_store.query_songs.assert_called_once_with("expanded query", mock_embedder, 5, 0.7)
+    mock_store.query_songs.assert_called_once_with("expanded query", mock_embedder, 5, 0.7, "evt-1")
     assert result == [{"title": "Song A", "artist": "A1"}]
 
 
@@ -358,10 +346,10 @@ async def test_rag_engine_query_songs_uses_hyde_provider():
     mock_hyde = MagicMock()
     mock_hyde.expand_query.return_value = "expanded query"
     rag = RagEngine(vector_store=mock_store, embedder=mock_embedder, dj=mock_dj, hyde=mock_hyde)
-    result = await rag.query_songs("party vibes", n_results=5, max_distance=0.7)
+    result = await rag.query_songs("party vibes", event_id="evt-1", n_results=5, max_distance=0.7)
     mock_hyde.expand_query.assert_called_once_with("party vibes")
     mock_dj.expand_query_hyde.assert_not_called()
-    mock_store.query_songs.assert_called_once_with("expanded query", mock_embedder, 5, 0.7)
+    mock_store.query_songs.assert_called_once_with("expanded query", mock_embedder, 5, 0.7, "evt-1")
     assert result == [{"title": "Song A", "artist": "A1"}]
 
 
@@ -867,7 +855,6 @@ async def test_playlist_graph_builder_passes_anchor_artists_to_llm():
         llm_generator=fake_llm_gen,
         db_fetcher=fake_db_fetch,
         uri_validator=fake_validator,
-        target_wildcards=1,
         max_attempts=1,
     )
     workflow = builder.build()
@@ -954,3 +941,38 @@ async def test_ingest_batch_enriches_before_tagging_and_batch_embeds():
         assert len(body) == 2
         assert body[0]["name"] == "Song A"
         assert body[0]["embedding"] == [0.1] * 10
+
+
+def test_library_anchor_artists_dedupes_and_skips_empty():
+    from app.api.endpoints import _library_anchor_artists
+
+    songs = [
+        {"artist": "Eminem"},
+        {"artist": "Eminem"},
+        {"artist": "Drake"},
+        {"artist": ""},
+    ]
+    result = _library_anchor_artists(songs)
+    assert sorted(result) == ["Drake", "Eminem"]
+
+
+def test_tuned_strong_match_margin_overrides_default(tmp_path, monkeypatch):
+    """If eval/optimized/params.json contains strong_match_margin, it is loaded."""
+    import json
+    from app.core import tuned_params as tp_module
+
+    params_file = tmp_path / "params.json"
+    params_file.write_text(json.dumps({"strong_match_margin": 0.08}))
+
+    monkeypatch.setattr(tp_module.settings, "TUNED_PARAMS_PATH", str(params_file))
+    params = tp_module.load_tuned_params()
+    assert params["strong_match_margin"] == 0.08
+
+
+def test_param_grid_sweeps_strong_match_margin():
+    from eval.optimizer import PARAM_GRID, grid_combinations
+    assert "strong_match_margin" in PARAM_GRID
+    assert "strong_match_distance" not in PARAM_GRID
+    combos = list(grid_combinations())
+    assert len(combos) == 81  # 3 × 3 × 3 × 3
+    assert all("strong_match_margin" in c for c in combos)

@@ -10,37 +10,95 @@ logger = logging.getLogger(__name__)
 
 class PlaylistGraphBuilder:
     def __init__(
-        self, 
+        self,
         llm_generator: Callable[[str, int, List[str], List[Dict[str, Any]], List[str]], Awaitable[List[Dict[str, Any]]]],
-        db_fetcher: Callable[[str], Awaitable[List[Dict[str, Any]]]], 
-        uri_validator: Callable[[Dict[str, Any]], Awaitable[bool]], 
-        target_wildcards: int = 5, 
-        max_attempts: int = 3
+        db_fetcher: Callable[[str], Awaitable[List[Dict[str, Any]]]],
+        uri_validator: Callable[[Dict[str, Any]], Awaitable[bool]],
+        target_playlist_size: int = 20,
+        min_wildcards: int = 3,
+        strong_match_margin: float = 0.10,
+        max_attempts: int = 3,
+        overprovision_factor: float = 1.0,
     ):
         self.llm_generator = llm_generator
         self.db_fetcher = db_fetcher
         self.uri_validator = uri_validator
-        self.target_wildcards = target_wildcards
+        self.target_playlist_size = target_playlist_size
+        self.min_wildcards = min_wildcards
+        self.strong_match_margin = strong_match_margin
         self.max_attempts = max_attempts
+        self.overprovision_factor = overprovision_factor
 
     async def initial_fetch(self, state: PlaylistState) -> Dict[str, Any]:
         logger.info(f"Starting initial fetch for event: {state.event_description}")
-        # Sequential: Fetch DB songs first, then use them as context for LLM
-        db_songs = await self.db_fetcher(state.event_description)
-        anchor_artists = list({s["artist"] for s in db_songs if s.get("artist")})
+        retrieved = await self.db_fetcher(state.event_description)
+
+        # Rank by vibe fit (closest first). The embedding model packs distances
+        # into a narrow band, so the *relative* order is the reliable signal —
+        # don't trust the store's return order.
+        retrieved = sorted(retrieved, key=lambda s: s.get("distance", 1.0))
+
+        # Spine eligibility is RELATIVE, not an absolute distance. This embedding
+        # model packs all real-text cosine distances into a narrow band (~0.20-0.35),
+        # so a fixed absolute gate is brittle: a hair too low excludes the entire
+        # library (empty spine), a hair too high admits every song. Instead keep songs
+        # within `strong_match_margin` of the CLOSEST match for THIS query. The absolute
+        # quality gate is max_distance, applied upstream at retrieval; this margin only
+        # picks the best-fitting cluster from the pool that already cleared it.
+        if retrieved:
+            best_distance = retrieved[0].get("distance", 1.0)  # retrieved is sorted ascending
+            cutoff = best_distance + self.strong_match_margin
+            strong_songs = [s for s in retrieved if s.get("distance", 1.0) <= cutoff]
+            logger.info(
+                f"Library match: {len(retrieved)} retrieved, {len(strong_songs)} strong "
+                f"(within {self.strong_match_margin} of best={best_distance:.4f}, cutoff={cutoff:.4f})"
+            )
+        else:
+            strong_songs = []
+            logger.info("Library match: 0 retrieved, 0 strong")
+
+        # Anchors come from the FULL participant library (seeded into state by
+        # the endpoint), NOT the vibe-filtered retrieval. Otherwise a weak match
+        # leaves no anchors and the DJ generates generic, taste-blind wildcards.
+        # Fall back to retrieval-derived artists only when nothing was seeded.
+        anchor_artists = state.anchor_artists or list(
+            {s["artist"] for s in retrieved if s.get("artist")}
+        )
+
+        # Few strong matches -> generation fills the playlist (vibe-carrying).
+        # Many strong matches -> library stays the spine, minimal generation.
+        target_wildcards = max(
+            self.min_wildcards,
+            self.target_playlist_size - len(strong_songs),
+        )
+
+        # Cap the spine to the closest (size - wildcards) songs. Even when every
+        # song clears the absolute strong-match gate, only the best-fitting ones
+        # earn a seat — the rest are the worst-vibe tail and are dropped so the
+        # final playlist never overflows target_playlist_size.
+        spine_size = max(0, self.target_playlist_size - target_wildcards)
+        spine_songs = strong_songs[:spine_size]
+        logger.info(
+            f"Dynamic wildcard target: {target_wildcards} "
+            f"(playlist_size={self.target_playlist_size}, strong={len(strong_songs)}, "
+            f"spine={len(spine_songs)})"
+        )
+
+        requested_count = round(target_wildcards * self.overprovision_factor)
         candidate_wildcards = await self.llm_generator(
             state.event_description,
-            self.target_wildcards,
+            requested_count,
             [],
-            db_songs,
+            spine_songs,
             anchor_artists,
         )
 
         return {
-            "db_songs": db_songs,
+            "db_songs": spine_songs,
             "anchor_artists": anchor_artists,
             "candidate_wildcards": candidate_wildcards,
-            "attempts": 1
+            "attempts": 1,
+            "target_wildcards": target_wildcards,
         }
 
     async def validate(self, state: PlaylistState) -> Dict[str, Any]:
@@ -71,12 +129,13 @@ class PlaylistGraphBuilder:
         }
 
     async def regenerate(self, state: PlaylistState) -> Dict[str, Any]:
-        missing = self.target_wildcards - len(state.validated_wildcards)
+        missing = state.target_wildcards - len(state.validated_wildcards)
         logger.info(f"Regenerating {missing} missing wildcards (Attempt {state.attempts + 1})")
         
+        requested_count = round(missing * self.overprovision_factor)
         new_candidates = await self.llm_generator(
             state.event_description,
-            missing,
+            requested_count,
             state.rejected_wildcards,
             state.db_songs,
             state.anchor_artists,
@@ -88,7 +147,7 @@ class PlaylistGraphBuilder:
         }
 
     def should_finalize(self, state: PlaylistState) -> str:
-        if len(state.validated_wildcards) >= self.target_wildcards:
+        if len(state.validated_wildcards) >= state.target_wildcards:
             logger.info("Target wildcards reached. Proceeding to finalize.")
             return "merge_and_shuffle"
         
@@ -109,7 +168,13 @@ class PlaylistGraphBuilder:
             if key not in seen:
                 seen.add(key)
                 deduped.append(song)
-                
+
+        # Safety net: never hand back more than the target. db_songs are already
+        # the closest-by-distance spine and come first, so any overflow trimmed
+        # here is the weakest tail.
+        if len(deduped) > self.target_playlist_size:
+            deduped = deduped[:self.target_playlist_size]
+
         random.shuffle(deduped)
 
         library_count = sum(1 for s in deduped if s.get("source") != "new_suggestion")

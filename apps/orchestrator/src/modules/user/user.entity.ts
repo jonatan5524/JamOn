@@ -29,6 +29,9 @@ export class User {
     @Column({ nullable: true, select: false })
     spotifyAccessToken?: string;
 
+    @Column({ nullable: true, select: false })
+    spotifyClientKey?: string;
+
     @Column({type: 'text', nullable: true, select: false })
     appRefreshToken?: string | null;
 

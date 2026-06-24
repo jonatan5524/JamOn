@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { AlertCircle } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Logo from "@/components/brand/Logo";
 import SpotifyMark from "@/components/brand/SpotifyMark";
@@ -13,6 +13,8 @@ const Login = () => {
   const navigate = useNavigate();
   const { startSpotifyLogin, isLoading, error, isAuthenticated } =
     useSpotifyAuth();
+  const [email, setEmail] = useState("");
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   useEffect(() => {
     if (isAuthenticated()) {
@@ -66,11 +68,21 @@ const Login = () => {
               </motion.div>
             )}
 
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="Your Spotify account email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mb-4 w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none"
+            />
+
             <Button
               variant="glow"
               size="xl"
-              onClick={startSpotifyLogin}
-              disabled={isLoading}
+              onClick={() => startSpotifyLogin(email)}
+              disabled={isLoading || !isValidEmail}
               className="w-full border-none bg-[#1DB954] text-white hover:bg-[#1ed760] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <SpotifyMark className="mr-3 h-6 w-6" />

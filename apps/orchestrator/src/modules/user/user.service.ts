@@ -14,6 +14,7 @@ export class UserService {
     spotifyProfile: any,
     spotifyRefreshToken: string,
     spotifyAccessToken: string,
+    spotifyClientKey: string,
   ): Promise<User> {
     const { id, email, display_name, images } = spotifyProfile;
 
@@ -27,12 +28,14 @@ export class UserService {
         profileImage: images?.[0]?.url,
         spotifyRefreshToken: spotifyRefreshToken,
         spotifyAccessToken: spotifyAccessToken,
+        spotifyClientKey: spotifyClientKey,
       });
     } else {
       user.displayName = display_name;
       user.profileImage = images?.[0]?.url;
       user.spotifyRefreshToken = spotifyRefreshToken;
       user.spotifyAccessToken = spotifyAccessToken;
+      user.spotifyClientKey = spotifyClientKey;
     }
 
     return await this.userRepository.save(user);

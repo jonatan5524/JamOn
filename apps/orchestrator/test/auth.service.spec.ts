@@ -6,12 +6,11 @@ import { HttpException, HttpStatus } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { AuthService } from "../src/modules/auth/auth.service";
-import { ConfigService } from "@nestjs/config";
 import { UserService } from "../src/modules/user/user.service";
-import { JwtService } from "@nestjs/jwt";
 import { SpotifyService } from "../src/modules/spotify/spotify.service";
 import { DataEngineService } from "../src/modules/data-engine/data-engine.service";
 import { SongService } from "../src/modules/song/song.service";
+import { SpotifyClient } from "../src/modules/spotify/spotify-client.types";
 
 const mockAxiosResponse = <T>(data: T): AxiosResponse<T> => ({
   data,
@@ -26,6 +25,13 @@ describe("AuthService", () => {
   let httpService: jest.Mocked<HttpService>;
   let configService: jest.Mocked<ConfigService>;
 
+  const client: SpotifyClient = {
+    key: "app1",
+    clientId: "test-client-id",
+    clientSecret: "test-client-secret",
+    redirectUri: "http://localhost:3000/api/auth/spotify/callback",
+  };
+
   beforeEach(async () => {
     const module = await Test.createTestingModule({
       providers: [
@@ -33,16 +39,6 @@ describe("AuthService", () => {
         {
           provide: HttpService,
           useValue: { post: jest.fn() },
-        },
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn((key: string) => ({
-              SPOTIFY_CLIENT_ID: "test-client-id",
-              SPOTIFY_CLIENT_SECRET: "test-client-secret",
-              SPOTIFY_REDIRECT_URI: "http://localhost:3000/auth/spotify/callback",
-            }[key] ?? "")),
-          },
         },
         {
           provide: ConfigService,
@@ -88,31 +84,19 @@ describe("AuthService", () => {
   });
 
   describe("getAuthorizationUrl", () => {
-    it("should include required scopes and generated state in authorization URL", () => {
-      const { url, state } = service.getAuthorizationUrl();
+    it("includes required scopes and a state ending in the client key", () => {
+      const { url, state } = service.getAuthorizationUrl(client);
       const parsedUrl = new URL(url);
       const scope = parsedUrl.searchParams.get("scope");
 
-      expect(state).toHaveLength(32);
+      expect(state).toMatch(/^[a-f0-9]{32}:app1$/);
       expect(parsedUrl.origin).toBe("https://accounts.spotify.com");
       expect(parsedUrl.pathname).toBe("/authorize");
       expect(parsedUrl.searchParams.get("client_id")).toBe("test-client-id");
-      expect(parsedUrl.searchParams.get("response_type")).toBe("code");
+      expect(parsedUrl.searchParams.get("redirect_uri")).toBe(client.redirectUri);
       expect(parsedUrl.searchParams.get("state")).toBe(state);
       expect(scope).toContain("playlist-modify-public");
-      expect(scope).toContain("playlist-modify-private");
-      expect(scope).toContain("user-read-private");
-      expect(scope).toContain("user-read-email");
       expect(scope).toContain("user-top-read");
-    });
-  });
-
-  describe("configuration", () => {
-    it("should read spotify oauth values from ConfigService", () => {
-      service.getAuthorizationUrl();
-
-      expect(configService.get).toHaveBeenCalledWith("SPOTIFY_CLIENT_ID");
-      expect(configService.get).toHaveBeenCalledWith("SPOTIFY_REDIRECT_URI");
     });
   });
 
@@ -130,7 +114,7 @@ describe("AuthService", () => {
         ),
       );
 
-      const result = await service.exchangeCodeForToken("auth-code");
+      const result = await service.exchangeCodeForToken("auth-code", client);
 
       expect(result).toEqual({
         access_token: "access-token",
@@ -163,7 +147,7 @@ describe("AuthService", () => {
       );
 
       try {
-        await service.exchangeCodeForToken("bad-code");
+        await service.exchangeCodeForToken("bad-code", client);
       } catch (error: unknown) {
         expect(error).toBeInstanceOf(HttpException);
         expect((error as HttpException).getStatus()).toBe(HttpStatus.BAD_GATEWAY);

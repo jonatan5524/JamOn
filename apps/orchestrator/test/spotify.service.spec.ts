@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { of, throwError } from 'rxjs';
 import { AxiosResponse } from 'axios';
 import { SpotifyService } from '../src/modules/spotify/spotify.service';
-import { ConfigService } from '@nestjs/config';
+import { SpotifyClientRegistry } from '../src/modules/spotify/spotify-client.registry';
 
 const mockAxiosResponse = <T>(data: T): AxiosResponse<T> => ({
   data,
@@ -26,6 +26,7 @@ describe('SpotifyService', () => {
           provide: HttpService,
           useValue: {
             request: jest.fn(),
+            post: jest.fn(),
           },
         },
         {
@@ -35,6 +36,17 @@ describe('SpotifyService', () => {
               SPOTIFY_CLIENT_ID: 'test-client-id',
               SPOTIFY_CLIENT_SECRET: 'test-client-secret',
             }[key] ?? '')),
+          },
+        },
+        {
+          provide: SpotifyClientRegistry,
+          useValue: {
+            getDefault: jest.fn(() => ({
+              key: 'default',
+              clientId: 'test-client-id',
+              clientSecret: 'test-client-secret',
+              redirectUri: 'http://localhost:3000/api/auth/spotify/callback',
+            })),
           },
         },
       ],
@@ -143,6 +155,26 @@ describe('SpotifyService', () => {
       await expect(
         service.createPlaylist('bad-token', 'Name', false, 'Desc'),
       ).rejects.toBeDefined();
+    });
+  });
+
+  describe('getAppToken', () => {
+    it('requests a client_credentials token using the default client', async () => {
+      httpService.post = jest.fn().mockReturnValue(of(
+        mockAxiosResponse({ access_token: 'app-token' }),
+      )) as any;
+
+      const token = await service.getAppToken();
+
+      expect(token).toBe('app-token');
+      const expectedAuth = 'Basic ' + Buffer.from('test-client-id:test-client-secret').toString('base64');
+      expect(httpService.post).toHaveBeenCalledWith(
+        'https://accounts.spotify.com/api/token',
+        'grant_type=client_credentials',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: expectedAuth }),
+        }),
+      );
     });
   });
 });

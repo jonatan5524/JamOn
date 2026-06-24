@@ -41,11 +41,12 @@ export const useSpotifyAuth = () => {
     }
   }, [navigate]);
 
-  const startSpotifyLogin = useCallback(() => {
+  const startSpotifyLogin = useCallback((email: string) => {
     try {
       setIsLoading(true);
       setError(null);
-      window.location.href = `${API_URL}/auth/spotify/authorize`;
+      const url = `${API_URL}/auth/spotify/authorize?email=${encodeURIComponent(email)}`;
+      window.location.href = url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
       setIsLoading(false);

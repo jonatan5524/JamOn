@@ -95,10 +95,13 @@ class ChromaVectorStore:
         max_distance: float,
         event_id: str = "",
     ) -> List[dict]:
+        logger.info("[chroma] calling embed_query")
         query_embedding = embedder.embed_query(query_text)
+        logger.info(f"[chroma] embed_query returned {len(query_embedding) if query_embedding else 0} dims")
         if not query_embedding:
             return []
 
+        logger.info(f"[chroma] querying collection ({self._collection.count()} docs), n_results={n_results}")
         results = self._collection.query(
             query_embeddings=[query_embedding],
             n_results=n_results,

@@ -1,6 +1,7 @@
 import logging
 import os
 from google import genai
+from google.genai import types
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,10 @@ def _load_prompt(filename: str) -> str:
 
 class GeminiHyDEProvider:
     def __init__(self):
-        self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        self._client = genai.Client(
+            api_key=settings.GEMINI_API_KEY,
+            http_options=types.HttpOptions(timeout=30_000),
+        )
 
     def expand_query(self, event_description: str) -> str:
         prompt = _load_prompt("hyde_prompt.txt").replace("{event_description}", event_description)

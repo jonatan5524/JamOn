@@ -34,3 +34,19 @@ describe("UserService.findOrCreateBySpotifyId", () => {
     expect(user.spotifyClientKey).toBe("app2");
   });
 });
+
+describe("UserService.clearSessionTokens", () => {
+  it("nulls the app refresh token, Spotify creds, and client assignment", async () => {
+    const repo = { update: jest.fn().mockResolvedValue(undefined) };
+    const service = new UserService(repo as any);
+
+    await service.clearSessionTokens("user-1");
+
+    expect(repo.update).toHaveBeenCalledWith("user-1", {
+      appRefreshToken: null,
+      spotifyAccessToken: null,
+      spotifyRefreshToken: null,
+      spotifyClientKey: null,
+    });
+  });
+});

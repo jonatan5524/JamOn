@@ -14,7 +14,18 @@ const Login = () => {
   const { startSpotifyLogin, isLoading, error, isAuthenticated } =
     useSpotifyAuth();
   const [email, setEmail] = useState("");
+  const [ineligible, setIneligible] = useState(false);
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  const handleLogin = async () => {
+    const result = await startSpotifyLogin(email);
+    setIneligible(result === "ineligible");
+  };
+
+  const tryAnotherEmail = () => {
+    setIneligible(false);
+    setEmail("");
+  };
 
   useEffect(() => {
     if (isAuthenticated()) {
@@ -68,28 +79,54 @@ const Login = () => {
               </motion.div>
             )}
 
-            <input
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              placeholder="Your Spotify account email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mb-4 w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none"
-            />
+            {ineligible ? (
+              <div className="flex flex-col items-center gap-4 text-center">
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+                  <p className="text-sm font-medium text-amber-200">
+                    This email isn't set up for testing yet
+                  </p>
+                  <p className="mt-1 text-sm text-amber-200/80">
+                    JamOn is in Spotify test mode with a limited tester list. Ask
+                    the team to add{" "}
+                    <span className="font-medium">{email}</span> to the allowlist,
+                    then try again.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={tryAnotherEmail}
+                  className="w-full"
+                >
+                  Try a different email
+                </Button>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="Your Spotify account email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="mb-4 w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none"
+                />
 
-            <Button
-              variant="glow"
-              size="xl"
-              onClick={() => startSpotifyLogin(email)}
-              disabled={isLoading || !isValidEmail}
-              className="w-full border-none bg-[#1DB954] text-white hover:bg-[#1ed760] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <SpotifyMark className="mr-3 h-6 w-6" />
-              {isLoading
-                ? "Redirecting to Spotify..."
-                : "Continue with Spotify"}
-            </Button>
+                <Button
+                  variant="glow"
+                  size="xl"
+                  onClick={handleLogin}
+                  disabled={isLoading || !isValidEmail}
+                  className="w-full border-none bg-[#1DB954] text-white hover:bg-[#1ed760] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <SpotifyMark className="mr-3 h-6 w-6" />
+                  {isLoading
+                    ? "Redirecting to Spotify..."
+                    : "Continue with Spotify"}
+                </Button>
+              </>
+            )}
 
             <p className="mt-6 text-center text-sm text-muted-foreground">
               By signing in, you agree to let JamOn access your Spotify account

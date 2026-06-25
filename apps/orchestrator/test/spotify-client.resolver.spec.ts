@@ -39,6 +39,24 @@ describe("SpotifyClientResolver", () => {
     });
   });
 
+  describe("isRegistered", () => {
+    it("returns true when an assignment exists (lowercasing the email)", async () => {
+      repo.findOne.mockResolvedValue({ email: "a@b.com", clientKey: "app1" });
+      await expect(resolver.isRegistered("A@B.com")).resolves.toBe(true);
+      expect(repo.findOne).toHaveBeenCalledWith({ where: { email: "a@b.com" } });
+    });
+
+    it("returns false when no assignment exists", async () => {
+      repo.findOne.mockResolvedValue(null);
+      await expect(resolver.isRegistered("nobody@x.com")).resolves.toBe(false);
+    });
+
+    it("returns false for a missing email without hitting the repo", async () => {
+      await expect(resolver.isRegistered(undefined)).resolves.toBe(false);
+      expect(repo.findOne).not.toHaveBeenCalled();
+    });
+  });
+
   describe("resolveByState", () => {
     it("extracts the clientKey from the state and returns the client", () => {
       expect(resolver.resolveByState("abc123:app1").key).toBe("app1");

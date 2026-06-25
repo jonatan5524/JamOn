@@ -41,17 +41,37 @@ export const useSpotifyAuth = () => {
     }
   }, [navigate]);
 
-  const startSpotifyLogin = useCallback((email: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const url = `${API_URL}/auth/spotify/authorize?email=${encodeURIComponent(email)}`;
-      window.location.href = url;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
-      setIsLoading(false);
-    }
-  }, []);
+  const startSpotifyLogin = useCallback(
+    async (email: string): Promise<"redirecting" | "ineligible" | "error"> => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Preflight: is this email registered for testing? Checking before the
+        // full-page redirect lets us show a fallback screen instead of the
+        // backend's raw 400 JSON.
+        const res = await fetch(
+          `${API_URL}/auth/spotify/eligibility?email=${encodeURIComponent(email)}`,
+        );
+        const data = (await res.json().catch(() => null)) as {
+          eligible?: boolean;
+        } | null;
+
+        if (!res.ok || !data?.eligible) {
+          setIsLoading(false);
+          return "ineligible";
+        }
+
+        window.location.href = `${API_URL}/auth/spotify/authorize?email=${encodeURIComponent(email)}`;
+        return "redirecting";
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Login failed");
+        setIsLoading(false);
+        return "error";
+      }
+    },
+    [],
+  );
 
   const getAccessToken = useCallback((): string | null => {
     if (BYPASS_AUTH) return "bypass-token";

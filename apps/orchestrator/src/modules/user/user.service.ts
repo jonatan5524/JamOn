@@ -52,6 +52,19 @@ export class UserService {
     await this.userRepository.update(userId, { appRefreshToken: refreshToken });
   }
 
+  /**
+   * Clears all session state on logout: the app refresh token plus the stored
+   * Spotify credentials and client assignment. Profile fields are left intact.
+   */
+  async clearSessionTokens(userId: string): Promise<void> {
+    await this.userRepository.update(userId, {
+      appRefreshToken: null,
+      spotifyAccessToken: null,
+      spotifyRefreshToken: null,
+      spotifyClientKey: null,
+    });
+  }
+
   async findById(userId: string): Promise<User | null> {
     return await this.userRepository.findOne({ where: { id: userId } });
   }

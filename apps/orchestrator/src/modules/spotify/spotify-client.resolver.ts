@@ -30,6 +30,15 @@ export class SpotifyClientResolver {
     return this.toClient(assignment.clientKey);
   }
 
+  async isRegistered(email: string | undefined): Promise<boolean> {
+    if (!email) {
+      return false;
+    }
+    const normalized = email.trim().toLowerCase();
+    const assignment = await this.assignmentRepo.findOne({ where: { email: normalized } });
+    return assignment !== null;
+  }
+
   resolveByState(state: string): SpotifyClient {
     const clientKey = state.split(":")[1];
     if (!clientKey) {

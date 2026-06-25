@@ -24,13 +24,13 @@ export class User {
     profileImage?: string;
 
     @Column({ nullable: true, select: false })
-    spotifyRefreshToken?: string;
+    spotifyRefreshToken?: string | null;
 
     @Column({ nullable: true, select: false })
-    spotifyAccessToken?: string;
+    spotifyAccessToken?: string | null;
 
     @Column({ nullable: true, select: false })
-    spotifyClientKey?: string;
+    spotifyClientKey?: string | null;
 
     @Column({type: 'text', nullable: true, select: false })
     appRefreshToken?: string | null;

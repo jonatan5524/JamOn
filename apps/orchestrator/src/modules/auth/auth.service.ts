@@ -156,11 +156,13 @@ export class AuthService {
     }
   }
 
-  handleLogout(userId: string): void {
+  async handleLogout(userId: string): Promise<void> {
     this.logger.log(`Handling logout for user ID: ${userId}`);
-    this.userService.updateAppRefreshToken(userId, null).catch(error => {
-      this.logger.error(`Failed to clear refresh token for user ID ${userId}: ${error.message}`);
-    });
+    try {
+      await this.userService.clearSessionTokens(userId);
+    } catch (error: any) {
+      this.logger.error(`Failed to clear session for user ID ${userId}: ${error.message}`);
+    }
   }
 
   async refreshTokens(refreshToken: string) {

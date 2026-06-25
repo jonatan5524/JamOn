@@ -9,6 +9,7 @@ import {
   Post,
   HttpCode,
   UseGuards,
+  UseFilters,
   Body,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -16,6 +17,8 @@ import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import { AuthCallbackDto } from "./dto/auth-callback.dto";
 import { AuthorizeQueryDto } from "./dto/authorize-query.dto";
+import { AuthRedirectFilter } from "./auth-redirect.filter";
+import { SpotifyClientResolver } from "../spotify/spotify-client.resolver";
 import { ApiOperation, ApiTags, ApiResponse, ApiQuery, ApiBearerAuth, ApiBody } from "@nestjs/swagger";
 import { ConfigService } from "@nestjs/config";
 import { AuthGuard } from "@nestjs/passport";
@@ -28,7 +31,20 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly clientResolver: SpotifyClientResolver,
   ) { }
+
+  @Get("spotify/eligibility")
+  @ApiOperation({
+    summary: "Check whether an email is registered for Spotify testing",
+    description: "Returns { eligible } so the frontend can show a fallback screen before redirecting to Spotify."
+  })
+  @ApiQuery({ name: 'email', required: true, description: "The tester's Spotify account email" })
+  @ApiResponse({ status: 200, description: '{ eligible: boolean }' })
+  async checkEligibility(@Query('email') email?: string): Promise<{ eligible: boolean }> {
+    const eligible = await this.clientResolver.isRegistered(email);
+    return { eligible };
+  }
 
   private getCookie(req: Request, name: string): string | null {
     const cookieHeader = req.headers.cookie;
@@ -46,6 +62,7 @@ export class AuthController {
   }
 
   @Get("spotify/authorize")
+  @UseFilters(AuthRedirectFilter)
   @ApiOperation({
     summary: "Initiate the OAuth 2.0 flow to link a user's Spotify account",
     description: 'Resolves the user\'s Spotify test app by email, then redirects to Spotify and sets a state cookie for security.'
@@ -78,6 +95,7 @@ export class AuthController {
   }
 
   @Get("spotify/callback")
+  @UseFilters(AuthRedirectFilter)
   @ApiOperation({
     summary: 'Handle Spotify OAuth callback',
     description: 'Exchanges the authorization code for access tokens and redirects to the frontend client.'

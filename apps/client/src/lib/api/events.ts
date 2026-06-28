@@ -31,6 +31,14 @@ interface BackendParticipant {
   user?: BackendUser;
 }
 
+interface BackendPlaylistTrack {
+  id: string;
+  position: number;
+  title: string;
+  artist: string;
+  spotifyUrl?: string;
+}
+
 interface BackendEvent {
   id: string;
   code: string;
@@ -42,6 +50,7 @@ interface BackendEvent {
   playlistId?: string | null;
   playlistUrl?: string | null;
   tracksAdded?: number | null;
+  playlistTracks?: BackendPlaylistTrack[];
   statistics?: BackendEventStatistics | null;
 }
 
@@ -110,22 +119,34 @@ export const getEvent = async (eventId: string): Promise<EventDetail> => {
     inviteUrl: `${window.location.origin}/join/${raw.code}`,
     participants,
     mix: raw.playlistId
-      ? {
-          id: raw.playlistId,
-          trackCount: raw.tracksAdded ?? 0,
-          durationMin: Math.round(
-            (raw.statistics?.tracks.length ?? raw.tracksAdded ?? 0) * 3.5,
-          ),
-          spotifyUrl: raw.playlistUrl ?? "",
-          tracks: (raw.statistics?.tracks ?? []).map((track) => ({
-            id: track.id,
-            position: track.position,
-            title: track.title,
-            artist: track.artist,
-            spotifyUrl: track.spotifyUrl,
-            contributorIds: track.contributorIds,
-          })),
-        }
+      ? (() => {
+          const statsTracks = raw.statistics?.tracks ?? [];
+          const fallbackTracks = raw.playlistTracks ?? [];
+          const tracks = statsTracks.length > 0
+            ? statsTracks.map((track) => ({
+                id: track.id,
+                position: track.position,
+                title: track.title,
+                artist: track.artist,
+                spotifyUrl: track.spotifyUrl,
+                contributorIds: track.contributorIds,
+              }))
+            : fallbackTracks.map((track) => ({
+                id: track.id,
+                position: track.position,
+                title: track.title,
+                artist: track.artist,
+                spotifyUrl: track.spotifyUrl,
+                contributorIds: [] as string[],
+              }));
+          return {
+            id: raw.playlistId,
+            trackCount: raw.tracksAdded ?? tracks.length,
+            durationMin: Math.round(tracks.length * 3.5),
+            spotifyUrl: raw.playlistUrl ?? "",
+            tracks,
+          };
+        })()
       : null,
     contributions: (raw.statistics?.contributions ?? []).map((row) => ({
       participantId: row.participantId,
@@ -136,6 +157,7 @@ export const getEvent = async (eventId: string): Promise<EventDetail> => {
         colorForUser(row.participantId),
     })),
     playlistMatchPercent: raw.statistics?.playlistMatchPercent,
+    statisticsReady: raw.playlistId != null && raw.statistics != null,
     viewerRole: raw.viewerRole ?? "participant",
   };
 };
@@ -200,6 +222,7 @@ export const generateEventPlaylist = async (
         contributions: existing.contributions.length
           ? existing.contributions
           : MOCK_EVENT_DETAIL.contributions,
+        statisticsReady: true,
       };
     }
     return delay({

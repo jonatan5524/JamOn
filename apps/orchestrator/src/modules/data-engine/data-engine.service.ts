@@ -21,11 +21,15 @@ export class DataEngineService {
     this.logger.log(`Sending ${tracks.length} tracks to data-engine for indexing`);
     try {
       const { data } = await firstValueFrom(
-        this.httpService.post<CreateSongDto[]>('/ingest-batch', tracks),
+        this.httpService.post<any[]>('/ingest-batch', tracks),
       );
       this.logger.log(`Ingest batch complete — received ${data.length} indexed songs`);
-      
-      return data;
+      // Python returns snake_case (artist_name); normalize to camelCase DTO
+      return data.map((item) => ({
+        name: item.name,
+        artistName: item.artist_name ?? item.artistName,
+        embedding: item.embedding,
+      }));
     } catch (error: any) {
       this.logger.error(`Failed to ingest batch: ${error.message}`);
       throw error;

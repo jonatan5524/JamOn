@@ -13,7 +13,10 @@ class GeminiEmbeddingProvider:
     provider_id = "gemini"
 
     def __init__(self):
-        self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        self._client = genai.Client(
+            api_key=settings.GEMINI_API_KEY,
+            http_options=types.HttpOptions(timeout=30_000),
+        )
 
     @with_resilience
     def embed_document(self, text: str) -> List[float]:

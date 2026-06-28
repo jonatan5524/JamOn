@@ -19,7 +19,10 @@ def _load_prompt(filename: str) -> str:
 
 class GeminiDJProvider:
     def __init__(self):
-        self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        self._client = genai.Client(
+            api_key=settings.GEMINI_API_KEY,
+            http_options=types.HttpOptions(timeout=30_000),
+        )
 
     @with_resilience
     def generate_playlist(

@@ -12,6 +12,7 @@ export interface PlaylistResponseDto {
   tracksNotFound: string[];
   totalRequested: number;
   tracks: PlaylistTrackResultDto[];
+  hasPendingEmbeddings: boolean;
 }
 
 export interface PlaylistTrackResultDto {

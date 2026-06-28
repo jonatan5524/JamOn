@@ -4,12 +4,14 @@ import { cn } from "@/lib/utils";
 interface GroupMatchCardProps {
   percent?: number;
   isLoading?: boolean;
+  statisticsReady?: boolean;
   className?: string;
 }
 
 const GroupMatchCard = ({
   percent = 0,
   isLoading,
+  statisticsReady = true,
   className,
 }: GroupMatchCardProps) => (
   <section
@@ -21,7 +23,7 @@ const GroupMatchCard = ({
     <header className="mb-4 text-sm font-semibold text-foreground">
       Group match
     </header>
-    {isLoading ? (
+    {isLoading || !statisticsReady ? (
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <Skeleton className="h-3 w-20" />

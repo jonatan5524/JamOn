@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from "@nestjs/common";
 import { HttpModule } from "@nestjs/axios";
 import { AuthService } from "./auth.service";
 import { AuthController } from "./auth.controller";
@@ -7,6 +7,8 @@ import { UserModule } from "../user/user.module";
 import { JwtModule } from "@nestjs/jwt";
 import { JwtStrategy } from "./jwt.strategy";
 import { SpotifyModule } from "../spotify/spotify.module";
+import { SpotifyClientMiddleware } from "../spotify/spotify-client.middleware";
+import { AuthRedirectFilter } from "./auth-redirect.filter";
 import { DataEngineModule } from "../data-engine/data-engine.module";
 import { SongModule } from "../song/song.module";
 
@@ -27,8 +29,17 @@ import { SongModule } from "../song/song.module";
       }),
     }),
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, AuthRedirectFilter],
   controllers: [AuthController],
   exports: [AuthService],
 })
-export class AuthModule {}
+export class AuthModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(SpotifyClientMiddleware)
+      .forRoutes(
+        { path: "api/auth/spotify/authorize", method: RequestMethod.GET },
+        { path: "api/auth/spotify/callback", method: RequestMethod.GET },
+      );
+  }
+}

@@ -2,6 +2,7 @@ import {Injectable, Logger} from '@nestjs/common';
 import {HttpService} from '@nestjs/axios';
 import {ConfigService} from '@nestjs/config';
 import {firstValueFrom} from 'rxjs';
+import { SpotifyClientRegistry } from './spotify-client.registry';
 import {
   SimplifiedTrack,
   SpotifyPlaylist,
@@ -19,11 +20,11 @@ export class SpotifyService {
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    private readonly clientRegistry: SpotifyClientRegistry,
   ) {}
 
   getAppToken = async (): Promise<string> => {
-    const clientId = this.configService.get<string>('SPOTIFY_CLIENT_ID') ?? '';
-    const clientSecret = this.configService.get<string>('SPOTIFY_CLIENT_SECRET') ?? '';
+    const { clientId, clientSecret } = this.clientRegistry.getDefault();
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     const { data } = await firstValueFrom(
       this.httpService.post<{ access_token: string }>(

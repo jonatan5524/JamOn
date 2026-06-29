@@ -6,6 +6,7 @@ import { firstValueFrom } from "rxjs";
 import { randomBytes } from "crypto";
 import { UserService } from "../user/user.service";
 import { SpotifyService } from "../spotify/spotify.service";
+import { SpotifyClient } from "../spotify/spotify-client.types";
 import { DataEngineService } from "../data-engine/data-engine.service";
 import { SongService } from "../song/song.service";
 
@@ -31,15 +32,16 @@ export class AuthService {
     private readonly songService: SongService,
   ) { }
 
-  async handleLogin(code: string) {
-    const spotifyTokens = await this.exchangeCodeForToken(code);
+  async handleLogin(code: string, client: SpotifyClient) {
+    const spotifyTokens = await this.exchangeCodeForToken(code, client);
 
     const spotifyProfile = await this.getSpotifyProfile(spotifyTokens.access_token);
 
     const user = await this.userService.findOrCreateBySpotifyId(
       spotifyProfile,
       spotifyTokens.refresh_token,
-      spotifyTokens.access_token
+      spotifyTokens.access_token,
+      client.key
     );
 
     const payload = {userId: user.id};
@@ -103,7 +105,7 @@ export class AuthService {
     }
   }
 
-  getAuthorizationUrl(): { url: string; state: string } {
+  getAuthorizationUrl(client: SpotifyClient): { url: string; state: string } {
     const scopes = [
       "playlist-modify-public",
       "playlist-modify-private",
@@ -111,31 +113,31 @@ export class AuthService {
       "user-read-email",
       "user-top-read",
     ];
-    const state = randomBytes(16).toString("hex");
+    const state = `${randomBytes(16).toString("hex")}:${client.key}`;
 
     const params = new URLSearchParams({
-      client_id: this.configService.get<string>('SPOTIFY_CLIENT_ID') || '',
+      client_id: client.clientId,
       response_type: 'code',
-      redirect_uri: this.configService.get<string>('SPOTIFY_REDIRECT_URI') || '',
+      redirect_uri: client.redirectUri,
       scope: scopes.join(" "),
       state: state,
       show_dialog: "true",
     });
 
-    this.logger.log(`Generated authorization URL for Spotify OAuth`);
+    this.logger.log(`Generated authorization URL for Spotify client "${client.key}"`);
 
     return { url: `https://accounts.spotify.com/authorize?${params.toString()}`, state };
   }
 
-  async exchangeCodeForToken(code: string): Promise<SpotifyTokenResponse> {
+  async exchangeCodeForToken(code: string, client: SpotifyClient): Promise<SpotifyTokenResponse> {
     this.logger.log("Exchanging authorization code for access token");
     try {
       const params = new URLSearchParams({
         grant_type: "authorization_code",
         code: code,
-        redirect_uri: this.configService.get<string>('SPOTIFY_REDIRECT_URI') || '',
-        client_id: this.configService.get<string>('SPOTIFY_CLIENT_ID') || '',
-        client_secret: this.configService.get<string>('SPOTIFY_CLIENT_SECRET') || '',
+        redirect_uri: client.redirectUri,
+        client_id: client.clientId,
+        client_secret: client.clientSecret,
       });
 
       const { data } = await firstValueFrom(
@@ -154,11 +156,13 @@ export class AuthService {
     }
   }
 
-  handleLogout(userId: string): void {
+  async handleLogout(userId: string): Promise<void> {
     this.logger.log(`Handling logout for user ID: ${userId}`);
-    this.userService.updateAppRefreshToken(userId, null).catch(error => {
-      this.logger.error(`Failed to clear refresh token for user ID ${userId}: ${error.message}`);
-    });
+    try {
+      await this.userService.clearSessionTokens(userId);
+    } catch (error: any) {
+      this.logger.error(`Failed to clear session for user ID ${userId}: ${error.message}`);
+    }
   }
 
   async refreshTokens(refreshToken: string) {

@@ -2,6 +2,7 @@ import logging
 import os
 import openai
 from app.core.config import settings
+from app.providers.exceptions import GenerationError
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,10 @@ class NimHyDEProvider:
                 model=settings.NIM_HYDE_MODEL,
                 messages=[{"role": "user", "content": prompt}],
             )
-            return response.choices[0].message.content or event_description
+            content = response.choices[0].message.content or ""
+            if not content.strip():
+                raise GenerationError("NIM HyDE returned empty content")
+            return content
         except Exception as e:
             logger.error(f"NIM HyDE expansion failed: {e}")
-            return event_description
+            raise GenerationError(str(e)) from e

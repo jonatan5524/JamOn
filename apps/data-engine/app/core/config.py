@@ -30,6 +30,12 @@ class Settings:
         self.NIM_TAGGING_MODEL: str = os.environ.get("NIM_TAGGING_MODEL", "meta/llama-3.3-70b-instruct")
         self.NIM_HYDE_MODEL: str = os.environ.get("NIM_HYDE_MODEL", "meta/llama-3.1-8b-instruct")
         self.HYDE_PROVIDER: str = os.environ.get("HYDE_PROVIDER", self.DJ_PROVIDER)
+        self.PROVIDER_FAILOVER_ENABLED: bool = os.environ.get("PROVIDER_FAILOVER_ENABLED", "true").lower() == "true"
+        self.PROVIDER_FAILOVER_CHAIN: str = os.environ.get("PROVIDER_FAILOVER_CHAIN", "gemini,nim,college")
+        self.PROVIDER_CIRCUIT_FAILURE_THRESHOLD: int = int(os.environ.get("PROVIDER_CIRCUIT_FAILURE_THRESHOLD", "3"))
+        self.PROVIDER_CIRCUIT_WINDOW_SECONDS: float = float(os.environ.get("PROVIDER_CIRCUIT_WINDOW_SECONDS", "300"))
+        self.PROVIDER_CIRCUIT_COOLDOWN_SECONDS: float = float(os.environ.get("PROVIDER_CIRCUIT_COOLDOWN_SECONDS", "60"))
+        self.PROVIDER_FAILOVER_PROVIDER_ATTEMPTS: int = int(os.environ.get("PROVIDER_FAILOVER_PROVIDER_ATTEMPTS", "2"))
         # Song enrichment API keys
         self.LASTFM_API_KEY: str = os.environ.get("LASTFM_API_KEY", "")
         # Shared PostgreSQL database (same instance as the orchestrator)

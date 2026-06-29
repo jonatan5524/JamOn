@@ -14,10 +14,10 @@ def test_tuned_params_uses_strong_match_margin_not_distance():
 def test_exceptions_are_exception_subclasses():
     from app.providers.exceptions import (
         ConfigurationError, EmbeddingError, TaggingError,
-        GenerationError, CollectionMismatchError,
+        GenerationError, ProviderResponseError, CollectionMismatchError,
     )
     for exc in (ConfigurationError, EmbeddingError, TaggingError,
-                GenerationError, CollectionMismatchError):
+                GenerationError, ProviderResponseError, CollectionMismatchError):
         assert issubclass(exc, Exception)
 
 
@@ -372,6 +372,12 @@ async def test_lifespan_sets_app_container_on_state():
     mock_settings.TAGGING_PROVIDER = "gemini"
     mock_settings.DJ_PROVIDER = "gemini"
     mock_settings.HYDE_PROVIDER = "gemini"
+    mock_settings.PROVIDER_FAILOVER_ENABLED = False
+    mock_settings.PROVIDER_FAILOVER_CHAIN = "gemini,nim,college"
+    mock_settings.PROVIDER_CIRCUIT_FAILURE_THRESHOLD = 3
+    mock_settings.PROVIDER_CIRCUIT_WINDOW_SECONDS = 300
+    mock_settings.PROVIDER_CIRCUIT_COOLDOWN_SECONDS = 60
+    mock_settings.PROVIDER_FAILOVER_PROVIDER_ATTEMPTS = 2
     config_module.settings = mock_settings
     try:
         with patch("google.genai.Client"), patch("chromadb.Client") as mock_chroma, \
@@ -534,14 +540,16 @@ def test_gemini_hyde_provider_expand_query():
 
 def test_gemini_hyde_provider_falls_back_on_error():
     from unittest.mock import patch, MagicMock
+    import pytest
+    from app.providers.exceptions import GenerationError
     with patch("google.genai.Client") as mock_client_cls:
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         mock_client.models.generate_content.side_effect = Exception("network error")
         from app.providers.llm.gemini.hyde import GeminiHyDEProvider
         provider = GeminiHyDEProvider()
-        result = provider.expand_query("late night study")
-        assert result == "late night study"
+        with pytest.raises(GenerationError):
+            provider.expand_query("late night study")
 
 
 # ---------------------------------------------------------------------------
@@ -565,14 +573,16 @@ def test_college_hyde_provider_expand_query():
 
 def test_college_hyde_provider_falls_back_on_error():
     from unittest.mock import patch, MagicMock
+    import pytest
+    from app.providers.exceptions import GenerationError
     with patch("httpx.Client") as mock_cls:
         mock_http = MagicMock()
         mock_cls.return_value.__enter__.return_value = mock_http
         mock_http.post.side_effect = Exception("connection refused")
         from app.providers.llm.college.hyde import CollegeHyDEProvider
         provider = CollegeHyDEProvider()
-        result = provider.expand_query("late night study")
-        assert result == "late night study"
+        with pytest.raises(GenerationError):
+            provider.expand_query("late night study")
 
 
 # ---------------------------------------------------------------------------
@@ -635,14 +645,32 @@ def test_nim_hyde_provider_expand_query():
 
 def test_nim_hyde_provider_falls_back_on_error():
     from unittest.mock import patch, MagicMock
+    import pytest
+    from app.providers.exceptions import GenerationError
     with patch("openai.OpenAI") as mock_cls:
         mock_client = MagicMock()
         mock_cls.return_value = mock_client
         mock_client.chat.completions.create.side_effect = Exception("rate limit")
         from app.providers.llm.nim.hyde import NimHyDEProvider
         provider = NimHyDEProvider()
-        result = provider.expand_query("late night study")
-        assert result == "late night study"
+        with pytest.raises(GenerationError):
+            provider.expand_query("late night study")
+
+
+def test_nim_dj_provider_generate_playlist():
+    from unittest.mock import patch, MagicMock
+    import json
+    playlist = [{"title": "Song A", "artist": "Art", "source": "new_suggestion"}]
+    with patch("openai.OpenAI") as mock_cls:
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+        mock_client.chat.completions.create.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content=json.dumps(playlist)))]
+        )
+        from app.providers.llm.nim.dj import NimDJProvider
+        provider = NimDJProvider()
+        result = provider.generate_playlist("party", [], 1, [], anchor_artists=[])
+        assert result == playlist
 
 
 # ---------------------------------------------------------------------------
@@ -663,6 +691,14 @@ def test_factory_creates_nim_hyde():
         from app.providers.llm.factory import LLMProviderFactory
         container, _ = LLMProviderFactory.create("gemini", hyde="nim")
         assert type(container.hyde).__name__ == "NimHyDEProvider"
+
+
+def test_factory_creates_nim_dj():
+    from unittest.mock import patch
+    with patch("openai.OpenAI"), patch("google.genai.Client"):
+        from app.providers.llm.factory import LLMProviderFactory
+        container, _ = LLMProviderFactory.create("gemini", dj="nim")
+        assert type(container.dj).__name__ == "NimDJProvider"
 
 
 def test_factory_nim_mode_assigns_correct_providers():
@@ -686,6 +722,129 @@ def test_factory_default_gemini_creates_gemini_hyde():
         from app.providers.llm.factory import LLMProviderFactory
         container, _ = LLMProviderFactory.create("gemini")
         assert type(container.hyde).__name__ == "GeminiHyDEProvider"
+
+
+def test_factory_failover_chain_wraps_tagging_dj_and_hyde():
+    from unittest.mock import patch
+    with patch("openai.OpenAI"), patch("google.genai.Client"):
+        from app.providers.llm.factory import LLMProviderFactory
+        container, cfg = LLMProviderFactory.create(
+            "gemini",
+            enable_failover=True,
+            failover_chain=["gemini", "nim", "college"],
+        )
+        assert cfg.provider_id == "gemini"
+        assert type(container.tagging).__name__ == "FailoverTaggingProvider"
+        assert type(container.dj).__name__ == "FailoverDJProvider"
+        assert type(container.hyde).__name__ == "FailoverHyDEProvider"
+        assert container.tagging.provider_chain == ["gemini", "nim", "college"]
+        assert container.dj.provider_chain == ["gemini", "nim", "college"]
+        assert container.hyde.provider_chain == ["gemini", "nim", "college"]
+
+
+def test_failover_tagging_uses_next_provider_on_exception_and_empty_response():
+    from app.providers.exceptions import TaggingError
+    from app.providers.llm.failover import (
+        FailoverTaggingProvider,
+        ProviderCircuitBreaker,
+        ProviderEntry,
+    )
+
+    gemini = MagicMock()
+    nim = MagicMock()
+    college = MagicMock()
+    gemini.tag_songs.side_effect = TaggingError("quota exhausted")
+    nim.tag_songs.return_value = []
+    college.tag_songs.return_value = [{"title": "A", "artist": "B"}]
+    provider = FailoverTaggingProvider([
+        ProviderEntry("gemini", gemini, ProviderCircuitBreaker("tagging:gemini", failure_threshold=1)),
+        ProviderEntry("nim", nim, ProviderCircuitBreaker("tagging:nim", failure_threshold=1)),
+        ProviderEntry("college", college, ProviderCircuitBreaker("tagging:college", failure_threshold=1)),
+    ], max_attempts_per_provider=1)
+
+    result = provider.tag_songs([{"title": "A", "artist": "B"}])
+
+    assert result == [{"title": "A", "artist": "B"}]
+    gemini.tag_songs.assert_called_once()
+    nim.tag_songs.assert_called_once()
+    college.tag_songs.assert_called_once()
+
+
+def test_failover_skips_provider_while_circuit_is_open():
+    from app.providers.exceptions import GenerationError
+    from app.providers.llm.failover import (
+        FailoverDJProvider,
+        ProviderCircuitBreaker,
+        ProviderEntry,
+    )
+
+    gemini = MagicMock()
+    nim = MagicMock()
+    gemini.generate_playlist.side_effect = GenerationError("HTTP 500")
+    nim.generate_playlist.return_value = [{"title": "A", "artist": "B"}]
+    gemini_breaker = ProviderCircuitBreaker("dj:gemini", failure_threshold=1, recovery_timeout=60)
+    provider = FailoverDJProvider([
+        ProviderEntry("gemini", gemini, gemini_breaker),
+        ProviderEntry("nim", nim, ProviderCircuitBreaker("dj:nim", failure_threshold=1)),
+    ], max_attempts_per_provider=1)
+
+    provider.generate_playlist("party", [], 1, [], [])
+    provider.generate_playlist("party", [], 1, [], [])
+
+    assert gemini_breaker.state == "open"
+    assert gemini.generate_playlist.call_count == 1
+    assert nim.generate_playlist.call_count == 2
+
+
+def test_failover_hyde_retries_primary_after_cooldown():
+    import time
+    from app.providers.exceptions import GenerationError
+    from app.providers.llm.failover import (
+        FailoverHyDEProvider,
+        ProviderCircuitBreaker,
+        ProviderEntry,
+    )
+
+    gemini = MagicMock()
+    nim = MagicMock()
+    gemini.expand_query.side_effect = [GenerationError("timeout"), "expanded after cooldown"]
+    nim.expand_query.return_value = "expanded by nim"
+    gemini_breaker = ProviderCircuitBreaker("hyde:gemini", failure_threshold=1, recovery_timeout=0.01)
+    provider = FailoverHyDEProvider([
+        ProviderEntry("gemini", gemini, gemini_breaker),
+        ProviderEntry("nim", nim, ProviderCircuitBreaker("hyde:nim", failure_threshold=1)),
+    ], max_attempts_per_provider=1)
+
+    assert provider.expand_query("study") == "expanded by nim"
+    time.sleep(0.02)
+    assert provider.expand_query("study") == "expanded after cooldown"
+    assert gemini.expand_query.call_count == 2
+
+
+def test_failover_retries_malformed_response_before_using_next_provider():
+    from app.providers.llm.failover import (
+        FailoverDJProvider,
+        ProviderCircuitBreaker,
+        ProviderEntry,
+    )
+
+    gemini = MagicMock()
+    nim = MagicMock()
+    gemini.generate_playlist.side_effect = [
+        [],
+        [{"title": "Recovered", "artist": "Gemini"}],
+    ]
+    nim.generate_playlist.return_value = [{"title": "Fallback", "artist": "NIM"}]
+    provider = FailoverDJProvider([
+        ProviderEntry("gemini", gemini, ProviderCircuitBreaker("dj:gemini", failure_threshold=1)),
+        ProviderEntry("nim", nim, ProviderCircuitBreaker("dj:nim", failure_threshold=1)),
+    ], max_attempts_per_provider=2)
+
+    result = provider.generate_playlist("party", [], 1, [], [])
+
+    assert result == [{"title": "Recovered", "artist": "Gemini"}]
+    assert gemini.generate_playlist.call_count == 2
+    nim.generate_playlist.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

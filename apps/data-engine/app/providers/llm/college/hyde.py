@@ -2,6 +2,7 @@ import logging
 import os
 import httpx
 from app.core.config import settings
+from app.providers.exceptions import GenerationError
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,12 @@ class CollegeHyDEProvider:
                     json={"model": "gemma3:12b", "prompt": prompt, "stream": False},
                 )
                 response.raise_for_status()
-                return response.json()["response"]
+                content = response.json()["response"]
+                if not content.strip():
+                    raise GenerationError("College HyDE returned empty content")
+                return content
+        except GenerationError:
+            raise
         except Exception as e:
             logger.error(f"College HyDE expansion failed: {e}")
-            return event_description
+            raise GenerationError(str(e)) from e

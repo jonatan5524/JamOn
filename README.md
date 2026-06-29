@@ -351,7 +351,11 @@ GEMINI_API_KEY=your_gemini_key
 GENIUS_ACCESS_TOKEN=your_genius_token   # optional — lyrics enrich tagging
 LLM_PROVIDER=gemini
 VECTOR_DB_PROVIDER=chroma
+PROVIDER_FAILOVER_ENABLED=false
 ```
+
+For automatic model failover, set `PROVIDER_FAILOVER_ENABLED=true` and configure the full
+`gemini,nim,college` chain credentials (`GEMINI_API_KEY`, `NVIDIA_API_KEY`, and college model access).
 
 Start:
 ```bash

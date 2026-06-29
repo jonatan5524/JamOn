@@ -1,6 +1,14 @@
 from typing import Optional, Tuple
+from app.core.config import settings
 from app.providers.containers import LLMProviderContainer, EmbeddingConfig
 from app.providers.exceptions import ConfigurationError
+from app.providers.llm.failover import (
+    FailoverDJProvider,
+    FailoverHyDEProvider,
+    FailoverTaggingProvider,
+    ProviderEntry,
+    get_provider_breaker,
+)
 
 # NIM mode preset: default provider for each task.
 _NIM_DEFAULTS = {
@@ -48,11 +56,14 @@ def _make_dj(provider: str):
     if provider == "gemini":
         from app.providers.llm.gemini.dj import GeminiDJProvider
         return GeminiDJProvider()
+    if provider == "nim":
+        from app.providers.llm.nim.dj import NimDJProvider
+        return NimDJProvider()
     if provider == "college":
         from app.providers.llm.college.dj import CollegeDJProvider
         return CollegeDJProvider()
     raise ConfigurationError(
-        f"Unknown DJ provider: '{provider}'. Valid options: 'gemini', 'college'"
+        f"Unknown DJ provider: '{provider}'. Valid options: 'gemini', 'nim', 'college'"
     )
 
 
@@ -73,12 +84,32 @@ def _make_hyde(provider: str):
 
 class LLMProviderFactory:
     @staticmethod
+    def _build_entries(task_name: str, chain: list[str], maker):
+        entries = []
+        for provider_id in chain:
+            entries.append(
+                ProviderEntry(
+                    provider_id=provider_id,
+                    provider=maker(provider_id),
+                    breaker=get_provider_breaker(
+                        f"{task_name}:{provider_id}",
+                        failure_threshold=settings.PROVIDER_CIRCUIT_FAILURE_THRESHOLD,
+                        window_seconds=settings.PROVIDER_CIRCUIT_WINDOW_SECONDS,
+                        recovery_timeout=settings.PROVIDER_CIRCUIT_COOLDOWN_SECONDS,
+                    ),
+                )
+            )
+        return entries
+
+    @staticmethod
     def create(
         provider: str,
         embedding: Optional[str] = None,
         tagging: Optional[str] = None,
         dj: Optional[str] = None,
         hyde: Optional[str] = None,
+        enable_failover: bool = False,
+        failover_chain: Optional[list[str]] = None,
     ) -> Tuple[LLMProviderContainer, EmbeddingConfig]:
         """Build a (possibly mixed) provider container.
 
@@ -105,6 +136,35 @@ class LLMProviderFactory:
             raise ConfigurationError(
                 f"Unknown EMBEDDING provider: '{embedding}'. Valid options: 'gemini', 'college'"
             )
+
+        if enable_failover:
+            chain = failover_chain or [
+                item.strip() for item in settings.PROVIDER_FAILOVER_CHAIN.split(",") if item.strip()
+            ]
+            if not chain:
+                raise ConfigurationError("PROVIDER_FAILOVER_CHAIN must include at least one provider")
+            invalid = [item for item in chain if item not in ("gemini", "nim", "college")]
+            if invalid:
+                raise ConfigurationError(
+                    f"Unknown provider(s) in PROVIDER_FAILOVER_CHAIN: {', '.join(invalid)}"
+                )
+            container = LLMProviderContainer(
+                embedding=_make_embedding(embedding),
+                tagging=FailoverTaggingProvider(
+                    LLMProviderFactory._build_entries("tagging", chain, _make_tagging),
+                    max_attempts_per_provider=settings.PROVIDER_FAILOVER_PROVIDER_ATTEMPTS,
+                ),
+                dj=FailoverDJProvider(
+                    LLMProviderFactory._build_entries("dj", chain, _make_dj),
+                    max_attempts_per_provider=settings.PROVIDER_FAILOVER_PROVIDER_ATTEMPTS,
+                ),
+                hyde=FailoverHyDEProvider(
+                    LLMProviderFactory._build_entries("hyde", chain, _make_hyde),
+                    max_attempts_per_provider=settings.PROVIDER_FAILOVER_PROVIDER_ATTEMPTS,
+                ),
+            )
+            embed_config = EmbeddingConfig(provider_id=embedding, dims=_EMBED_DIMS[embedding])
+            return container, embed_config
 
         container = LLMProviderContainer(
             embedding=_make_embedding(embedding),

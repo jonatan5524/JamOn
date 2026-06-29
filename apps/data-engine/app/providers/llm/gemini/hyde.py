@@ -3,6 +3,7 @@ import os
 from google import genai
 from google.genai import types
 from app.core.config import settings
+from app.providers.exceptions import GenerationError
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,9 @@ class GeminiHyDEProvider:
                 model=settings.PLAYLIST_GENERATION_MODEL,
                 contents=prompt,
             )
-            return response.text or event_description
+            if not response.text:
+                raise GenerationError("Gemini HyDE returned empty content")
+            return response.text
         except Exception as e:
             logger.error(f"Gemini HyDE expansion failed: {e}")
-            return event_description
+            raise GenerationError(str(e)) from e

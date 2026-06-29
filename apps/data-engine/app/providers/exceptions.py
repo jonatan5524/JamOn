@@ -10,5 +10,8 @@ class TaggingError(Exception):
 class GenerationError(Exception):
     pass
 
+class ProviderResponseError(Exception):
+    pass
+
 class CollectionMismatchError(Exception):
     pass

@@ -15,4 +15,9 @@ def reset_circuit_breaker_global():
     cb.state = "CLOSED"
     cb.failure_count = 0
     cb.last_failure_time = 0
+    try:
+        from app.providers.llm.failover import reset_provider_circuit_breakers
+        reset_provider_circuit_breakers()
+    except Exception:
+        pass
     yield

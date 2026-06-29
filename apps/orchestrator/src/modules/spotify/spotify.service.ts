@@ -75,11 +75,19 @@ export class SpotifyService {
   searchTrackDetails = async (accessToken: string, title: string, artist: string): Promise<SpotifyTrackMatch | null> => {
     this.logger.log(`Searching: "${title}" by ${artist}`);
     const query = encodeURIComponent(`track:${title} artist:${artist}`);
-    const data = await this.spotifyRequest<SpotifySearchResponse>(
-      accessToken,
-      'get',
-      `/search?q=${query}&type=track&limit=1`,
-    );
+    let data: SpotifySearchResponse;
+    try {
+      data = await this.spotifyRequest<SpotifySearchResponse>(
+        accessToken,
+        'get',
+        `/search?q=${query}&type=track&limit=1`,
+      );
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 401 || status === 403) throw error;
+      this.logger.warn(`Search failed for "${title}" by ${artist} (status=${status ?? 'unknown'}), skipping`);
+      return null;
+    }
     const items = data.tracks?.items ?? [];
     if (items.length === 0) {
       this.logger.warn(`Track not found: "${title}" by ${artist}`);

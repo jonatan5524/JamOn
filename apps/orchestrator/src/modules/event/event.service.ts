@@ -21,9 +21,18 @@ const PG_UNIQUE_VIOLATION = "23505";
 
 type Vector = number[];
 
+export type PlaylistTrackSummary = {
+  id: string;
+  position: number;
+  title: string;
+  artist: string;
+  spotifyUrl?: string;
+};
+
 export type EventWithRole = Event & {
   viewerRole: EventRoleType;
   statistics?: EventStatistics | null;
+  playlistTracks?: PlaylistTrackSummary[];
 };
 
 const parseEmbedding = (embedding: string | number[] | null | undefined): Vector | null => {
@@ -163,7 +172,25 @@ export class EventsService {
       throw new ForbiddenException("You are not a member of this event");
     }
 
-    return Object.assign(event, { viewerRole: role });
+    const rawTracks = event.playlistId
+      ? await this.playlistTrackRepository.find({
+          where: { eventId: id },
+          relations: ["song"],
+          order: { position: "ASC" },
+        })
+      : [];
+
+    const playlistTracks: PlaylistTrackSummary[] = rawTracks.map((t) => ({
+      id: t.songId,
+      position: t.position,
+      title: t.song.name,
+      artist: t.song.artistName,
+      spotifyUrl: t.song.spotifyUri
+        ? `https://open.spotify.com/track/${t.song.spotifyUri.split(":").pop()}`
+        : undefined,
+    }));
+
+    return Object.assign(event, { viewerRole: role, playlistTracks });
   }
 
   // Lightweight role lookup for EventRoleGuard (no participant.user join).
@@ -200,6 +227,7 @@ export class EventsService {
     playlistUrl: string,
     tracksAdded: number,
     tracks: PlaylistTrackResultDto[] = [],
+    skipStatistics = false,
   ): Promise<void> {
     await this.eventRepository.manager.transaction(async (manager) => {
       await manager.update(Event, eventId, {
@@ -223,6 +251,12 @@ export class EventsService {
       }
     });
 
+    if (!skipStatistics) {
+      await this.recalculateStatistics(eventId);
+    }
+  }
+
+  async recalculateStatistics(eventId: string): Promise<void> {
     const event = await this.eventRepository.findOne({
       where: { id: eventId },
       relations: ["participants", "participants.user", "creator"],

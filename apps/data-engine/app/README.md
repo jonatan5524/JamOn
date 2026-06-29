@@ -59,6 +59,12 @@ python -m pytest app/ -q
 | `NIM_BASE_URL` | No | `https://integrate.api.nvidia.com/v1` | NIM API base URL |
 | `NIM_TAGGING_MODEL` | No | `meta/llama-3.3-70b-instruct` | Model for NIM tagging |
 | `NIM_HYDE_MODEL` | No | `meta/llama-3.3-70b-instruct` | Model for NIM HyDE expansion |
+| `PROVIDER_FAILOVER_ENABLED` | No | `true` | Enable automatic failover for tagging, DJ generation, and HyDE |
+| `PROVIDER_FAILOVER_CHAIN` | No | `gemini,nim,college` | Provider order used for automatic failover |
+| `PROVIDER_CIRCUIT_FAILURE_THRESHOLD` | No | `3` | Failures inside the rolling window before a provider circuit opens |
+| `PROVIDER_CIRCUIT_WINDOW_SECONDS` | No | `300` | Rolling failure window for provider circuit breakers |
+| `PROVIDER_CIRCUIT_COOLDOWN_SECONDS` | No | `60` | Time before an open provider circuit is probed again |
+| `PROVIDER_FAILOVER_PROVIDER_ATTEMPTS` | No | `2` | Attempts on one provider before failing over to the next provider |
 | `COLLEGE_BASE_URL` | If using College | — | Ollama base URL |
 | `COLLEGE_USERNAME` | No | — | Ollama auth username |
 | `COLLEGE_PASSWORD` | No | — | Ollama auth password |
@@ -73,7 +79,18 @@ LLM_PROVIDER=gemini
 VECTOR_DB_PROVIDER=chroma
 GEMINI_API_KEY=your_key_here
 GENIUS_ACCESS_TOKEN=your_genius_token  # optional
+PROVIDER_FAILOVER_ENABLED=false        # set true only after configuring NIM + College
 ```
+
+### Automatic provider failover
+
+When `PROVIDER_FAILOVER_ENABLED=true`, tagging, DJ playlist generation, and HyDE query expansion all use:
+
+```text
+gemini -> nim -> college
+```
+
+Each task/provider pair has an in-process rolling-window circuit breaker. HTTP 5xx/timeouts, 429 quota errors, and empty or malformed successful responses are retried, then trigger failover. After the cooldown, the primary provider is probed again.
 
 ### NIM `.env` (Gemini embedding + NIM tagging/HyDE + College DJ)
 

@@ -8,6 +8,7 @@ interface JamOnMixCardProps {
   mix: JamOnMix | null | undefined;
   participants: Participant[];
   isLoading?: boolean;
+  statisticsReady?: boolean;
   className?: string;
 }
 
@@ -55,6 +56,7 @@ const JamOnMixCard = ({
   mix,
   participants,
   isLoading,
+  statisticsReady = true,
   className,
 }: JamOnMixCardProps) => {
   return (
@@ -126,10 +128,12 @@ const JamOnMixCard = ({
                     {track.artist}
                   </p>
                 </div>
-                <ContributorChips
-                  ids={track.contributorIds}
-                  participants={participants}
-                />
+                {statisticsReady && (
+                  <ContributorChips
+                    ids={track.contributorIds}
+                    participants={participants}
+                  />
+                )}
               </li>
             ))}
       </ul>

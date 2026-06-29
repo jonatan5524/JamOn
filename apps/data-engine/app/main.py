@@ -23,15 +23,23 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    failover_chain = [
+        item.strip() for item in settings.PROVIDER_FAILOVER_CHAIN.split(",") if item.strip()
+    ]
     tasks = {
         "embedding": settings.EMBEDDING_PROVIDER,
         "tagging": settings.TAGGING_PROVIDER,
         "dj": settings.DJ_PROVIDER,
         "hyde": settings.HYDE_PROVIDER,
     }
+    provider_set = set(failover_chain) if settings.PROVIDER_FAILOVER_ENABLED else set(tasks.values())
     uses_gemini = any(p == "gemini" for p in tasks.values()) or settings.LLM_PROVIDER == "gemini"
     uses_college = any(p == "college" for p in tasks.values()) or settings.LLM_PROVIDER == "college"
     uses_nim = any(p == "nim" for p in tasks.values()) or settings.LLM_PROVIDER == "nim"
+    if settings.PROVIDER_FAILOVER_ENABLED:
+        uses_gemini = uses_gemini or "gemini" in provider_set
+        uses_college = uses_college or "college" in provider_set
+        uses_nim = uses_nim or "nim" in provider_set
 
     if uses_gemini and not settings.GEMINI_API_KEY:
         logger.error("GEMINI_API_KEY not set but a task uses gemini. Exiting.")
@@ -53,6 +61,8 @@ async def lifespan(app: FastAPI):
             tagging=settings.TAGGING_PROVIDER,
             dj=settings.DJ_PROVIDER,
             hyde=settings.HYDE_PROVIDER,
+            enable_failover=settings.PROVIDER_FAILOVER_ENABLED,
+            failover_chain=failover_chain,
         )
         vector_store = VectorStoreFactory.create(settings.VECTOR_DB_PROVIDER, embed_config)
         app.state.providers = AppContainer(llm=llm_container, vector_store=vector_store)
@@ -60,6 +70,8 @@ async def lifespan(app: FastAPI):
             f"Providers ready — embedding: {settings.EMBEDDING_PROVIDER}, "
             f"tagging: {settings.TAGGING_PROVIDER}, dj: {settings.DJ_PROVIDER}, "
             f"hyde: {settings.HYDE_PROVIDER}, "
+            f"failover: {settings.PROVIDER_FAILOVER_ENABLED} "
+            f"({settings.PROVIDER_FAILOVER_CHAIN}), "
             f"VectorDB: {settings.VECTOR_DB_PROVIDER}, "
             f"Collection: {vector_store.collection_name}"
         )

@@ -67,6 +67,24 @@ const Event = () => {
               isRetrying={isFetching}
             />
           ) : (
+            <>
+              {(isLoading || event) && (
+                <div className="mb-6">
+                  {isLoading ? (
+                    <>
+                      <div className="h-8 w-48 animate-pulse rounded bg-muted mb-2" />
+                      <div className="h-4 w-72 animate-pulse rounded bg-muted" />
+                    </>
+                  ) : (
+                    <>
+                      <h1 className="text-2xl font-bold tracking-tight">{event!.name}</h1>
+                      {event!.description && (
+                        <p className="mt-1 text-sm text-muted-foreground">{event!.description}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
               <div className="flex flex-col gap-5">
                 <InviteGuestsCard
@@ -86,14 +104,17 @@ const Event = () => {
                       mix={event?.mix ?? null}
                       participants={event?.participants ?? []}
                       isLoading={isLoading}
+                      statisticsReady={event?.statisticsReady}
                     />
                     <GroupMatchCard
                       percent={event?.playlistMatchPercent}
                       isLoading={isLoading}
+                      statisticsReady={event?.statisticsReady}
                     />
                     <TasteContributionsCard
                       contributions={event?.contributions ?? []}
                       isLoading={isLoading}
+                      statisticsReady={event?.statisticsReady}
                     />
                   </>
                 ) : (
@@ -113,6 +134,7 @@ const Event = () => {
                 )}
               </div>
             </div>
+            </>
           )}
         </main>
       </div>

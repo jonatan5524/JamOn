@@ -60,6 +60,8 @@ export interface EventDetail extends EventSummary {
   mix: JamOnMix | null;
   contributions: TasteContribution[];
   playlistMatchPercent?: number;
+  /** False when a playlist exists but statistics are still being computed in the background. */
+  statisticsReady: boolean;
   /** Current viewer's role on this event, from the backend. */
   viewerRole: EventRole;
 }

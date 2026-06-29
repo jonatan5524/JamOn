@@ -73,8 +73,7 @@ class CollegeDJProvider:
                 raw = response.json()["response"]
                 parsed = _parse_json_response(raw)
                 if parsed is None:
-                    logger.warning("College generate_playlist: could not parse JSON, returning empty list")
-                    return []
+                    raise GenerationError("College DJ returned malformed JSON")
                 if isinstance(parsed, list):
                     return parsed
                 # model may wrap in {"playlist": [...]} or return a single song dict

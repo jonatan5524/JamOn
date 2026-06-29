@@ -120,18 +120,6 @@ export class PlaylistService {
     );
 
     const unembedded = savedSongs.filter((song) => !song.embedding);
-    if (unembedded.length > 0) {
-      this.logger.log(
-        `[generatePlaylist] Sending ${unembedded.length} resolved track(s) for embedding`,
-      );
-      const dtos = await this.dataEngineService.ingestBatch(
-        unembedded.map((song) => ({
-          title: song.name,
-          artist: song.artistName,
-        })),
-      );
-      await this.songService.updateEmbeddings(dtos);
-    }
 
     const playlistTracks: PlaylistTrackResultDto[] = resolvedTracks.map(
       (track, index) => {
@@ -177,6 +165,23 @@ export class PlaylistService {
     this.logger.log(
       `[generatePlaylist] DONE — playlistId=${playlist.id}, url=${playlist.url}, added=${resolvedTracks.length}, notFound=${notFound.length}`,
     );
+
+    if (unembedded.length > 0) {
+      this.logger.log(
+        `[generatePlaylist] Background: sending ${unembedded.length} new track(s) for embedding`,
+      );
+      this.dataEngineService
+        .ingestBatch(unembedded.map((song) => ({ title: song.name, artist: song.artistName })))
+        .then((dtos) => this.songService.updateEmbeddings(dtos))
+        .catch((err) =>
+          this.logger.error(`[generatePlaylist] Background ingest failed: ${err?.message}`, err),
+        )
+        .then(() => this.eventsService.recalculateStatistics(eventId))
+        .catch((err) =>
+          this.logger.error(`[generatePlaylist] Background stats recalc failed: ${err?.message}`, err),
+        );
+    }
+
     return {
       playlistId: playlist.id,
       playlistUrl: playlist.url,
@@ -184,6 +189,7 @@ export class PlaylistService {
       tracksNotFound: notFound,
       totalRequested: songs.length,
       tracks: playlistTracks,
+      hasPendingEmbeddings: unembedded.length > 0,
     };
   }
 }

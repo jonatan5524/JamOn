@@ -112,6 +112,7 @@ jobs:
       SPOTIFY_CLIENT_ID: ${{ vars.SPOTIFY_CLIENT_ID }}
       SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
       SPOTIFY_REDIRECT_URI: ${{ vars.SPOTIFY_REDIRECT_URI }}
+      SPOTIFY_CLIENTS: ${{ secrets.SPOTIFY_CLIENTS }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       DB_PORT: ${{ vars.DB_PORT }}
       DB_USERNAME: ${{ vars.DB_USERNAME }}

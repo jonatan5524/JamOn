@@ -663,6 +663,12 @@ Go to **Settings → Secrets and variables → Actions → New repository secret
 | `DJ_PROVIDER` | `college` | Same options |
 | `HYDE_PROVIDER` | `nim` | Same options |
 | `VECTOR_DB_PROVIDER` | `chroma` | `chroma` until the pgvector mission ships, then flip to `pgvector` (config-only — no pipeline change). Today `chroma` is in-memory, so vectors are wiped on every deploy; `pgvector` will persist them in the native Postgres. The `DB_*` secrets above are reused by the data-engine for this. |
+| `PROVIDER_FAILOVER_ENABLED` | `true` | Enable automatic failover for tagging, DJ generation, and HyDE |
+| `PROVIDER_FAILOVER_CHAIN` | `gemini,nim,college` | Provider order for failover |
+| `PROVIDER_CIRCUIT_FAILURE_THRESHOLD` | `3` | Failures inside the rolling window before a provider circuit opens |
+| `PROVIDER_CIRCUIT_WINDOW_SECONDS` | `300` | Rolling failure window in seconds |
+| `PROVIDER_CIRCUIT_COOLDOWN_SECONDS` | `60` | How long to skip an open provider before probing it again |
+| `PROVIDER_FAILOVER_PROVIDER_ATTEMPTS` | `2` | Attempts on one provider before moving to the next provider |
 | `NIM_BASE_URL` | `https://integrate.api.nvidia.com/v1` | |
 | `NIM_TAGGING_MODEL` | `meta/llama-3.3-70b-instruct` | |
 | `NIM_HYDE_MODEL` | `meta/llama-3.3-70b-instruct` | |

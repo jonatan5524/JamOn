@@ -53,13 +53,9 @@ export class SpotifyClientRegistry {
       });
     }
 
-    this.defaultKey =
-      this.configService.get<string>("SPOTIFY_DEFAULT_CLIENT_KEY") ?? entries[0].key;
-    if (!this.clients.has(this.defaultKey)) {
-      throw new Error(
-        `SPOTIFY_DEFAULT_CLIENT_KEY "${this.defaultKey}" not found in SPOTIFY_CLIENTS`,
-      );
-    }
+    // App-level calls (the chart token) use the first configured client. The
+    // choice is arbitrary — a client_credentials token only reads public data.
+    this.defaultKey = entries[0].key;
     this.logger.log(
       `Loaded ${this.clients.size} Spotify client(s), default="${this.defaultKey}"`,
     );

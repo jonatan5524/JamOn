@@ -62,8 +62,7 @@ New env var `SPOTIFY_CLIENTS`, a JSON array:
 ```
 
 - Redirect URI stays a single shared value: existing `SPOTIFY_REDIRECT_URI`.
-- Optional `SPOTIFY_DEFAULT_CLIENT_KEY` selects the client used for app-level
-  calls (`getAppToken`); defaults to the first entry.
+- App-level calls (`getAppToken`, chart token) use the first configured client.
 - **Backward compatibility:** if `SPOTIFY_CLIENTS` is unset, build a
   single-entry registry from the existing `SPOTIFY_CLIENT_ID` /
   `SPOTIFY_CLIENT_SECRET` so current `.env` files keep working.
@@ -225,7 +224,7 @@ getDefault(): SpotifyClient                            // app-level calls / char
 | `modules/user/user.service.ts` | persist `spotifyClientKey` at login |
 | `app.module.ts` | add assignment entity |
 | frontend login page | email input → authorize with email |
-| `.env.example` | document `SPOTIFY_CLIENTS`, `SPOTIFY_DEFAULT_CLIENT_KEY` |
+| `.env.example` | document `SPOTIFY_CLIENTS` |
 
 ## Out of scope
 

@@ -25,20 +25,17 @@ describe("SpotifyClientRegistry", () => {
     expect(registry.all()).toHaveLength(2);
   });
 
-  it("defaults to the first entry, overridable by SPOTIFY_DEFAULT_CLIENT_KEY", () => {
-    const base = {
-      SPOTIFY_REDIRECT_URI: redirect,
-      SPOTIFY_CLIENTS: JSON.stringify([
-        { key: "app1", id: "id1", secret: "sec1" },
-        { key: "app2", id: "id2", secret: "sec2" },
-      ]),
-    };
-    expect(new SpotifyClientRegistry(makeConfig(base)).getDefault().key).toBe("app1");
-    expect(
-      new SpotifyClientRegistry(
-        makeConfig({ ...base, SPOTIFY_DEFAULT_CLIENT_KEY: "app2" }),
-      ).getDefault().key,
-    ).toBe("app2");
+  it("uses the first entry as the default client", () => {
+    const registry = new SpotifyClientRegistry(
+      makeConfig({
+        SPOTIFY_REDIRECT_URI: redirect,
+        SPOTIFY_CLIENTS: JSON.stringify([
+          { key: "app1", id: "id1", secret: "sec1" },
+          { key: "app2", id: "id2", secret: "sec2" },
+        ]),
+      }),
+    );
+    expect(registry.getDefault().key).toBe("app1");
   });
 
   it("falls back to single-client env when SPOTIFY_CLIENTS is unset", () => {

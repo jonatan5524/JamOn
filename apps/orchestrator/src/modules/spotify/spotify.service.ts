@@ -2,6 +2,7 @@ import {Injectable, Logger} from '@nestjs/common';
 import {HttpService} from '@nestjs/axios';
 import {ConfigService} from '@nestjs/config';
 import {firstValueFrom} from 'rxjs';
+import { SpotifyClientRegistry } from './spotify-client.registry';
 import {
   SimplifiedTrack,
   SpotifyPlaylist,
@@ -19,11 +20,11 @@ export class SpotifyService {
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    private readonly clientRegistry: SpotifyClientRegistry,
   ) {}
 
   getAppToken = async (): Promise<string> => {
-    const clientId = this.configService.get<string>('SPOTIFY_CLIENT_ID') ?? '';
-    const clientSecret = this.configService.get<string>('SPOTIFY_CLIENT_SECRET') ?? '';
+    const { clientId, clientSecret } = this.clientRegistry.getDefault();
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     const { data } = await firstValueFrom(
       this.httpService.post<{ access_token: string }>(
@@ -75,11 +76,19 @@ export class SpotifyService {
   searchTrackDetails = async (accessToken: string, title: string, artist: string): Promise<SpotifyTrackMatch | null> => {
     this.logger.log(`Searching: "${title}" by ${artist}`);
     const query = encodeURIComponent(`track:${title} artist:${artist}`);
-    const data = await this.spotifyRequest<SpotifySearchResponse>(
-      accessToken,
-      'get',
-      `/search?q=${query}&type=track&limit=1`,
-    );
+    let data: SpotifySearchResponse;
+    try {
+      data = await this.spotifyRequest<SpotifySearchResponse>(
+        accessToken,
+        'get',
+        `/search?q=${query}&type=track&limit=1`,
+      );
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 401 || status === 403) throw error;
+      this.logger.warn(`Search failed for "${title}" by ${artist} (status=${status ?? 'unknown'}), skipping`);
+      return null;
+    }
     const items = data.tracks?.items ?? [];
     if (items.length === 0) {
       this.logger.warn(`Track not found: "${title}" by ${artist}`);

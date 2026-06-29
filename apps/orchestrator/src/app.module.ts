@@ -14,6 +14,7 @@ import { EventParticipant } from "./modules/event/event-participant.entity";
 import { Song } from "./modules/song/song.entity";
 import { SongLike } from "./modules/song/song-like.entity";
 import { EventPlaylistTrack } from "./modules/event/event-playlist-track.entity";
+import { SpotifyClientAssignment } from "./modules/spotify/spotify-client-assignment.entity";
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { EventPlaylistTrack } from "./modules/event/event-playlist-track.entity"
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
-        entities: [User, Event, EventParticipant, EventPlaylistTrack, Song, SongLike],
+        entities: [User, Event, EventParticipant, EventPlaylistTrack, Song, SongLike, SpotifyClientAssignment],
         synchronize: true,
         autoLoadEntities: true
       }),

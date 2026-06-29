@@ -9,12 +9,16 @@ import {
   Post,
   HttpCode,
   UseGuards,
+  UseFilters,
   Body,
   UnauthorizedException,
 } from "@nestjs/common";
 import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import { AuthCallbackDto } from "./dto/auth-callback.dto";
+import { AuthorizeQueryDto } from "./dto/authorize-query.dto";
+import { AuthRedirectFilter } from "./auth-redirect.filter";
+import { SpotifyClientResolver } from "../spotify/spotify-client.resolver";
 import { ApiOperation, ApiTags, ApiResponse, ApiQuery, ApiBearerAuth, ApiBody } from "@nestjs/swagger";
 import { ConfigService } from "@nestjs/config";
 import { AuthGuard } from "@nestjs/passport";
@@ -27,7 +31,20 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly clientResolver: SpotifyClientResolver,
   ) { }
+
+  @Get("spotify/eligibility")
+  @ApiOperation({
+    summary: "Check whether an email is registered for Spotify testing",
+    description: "Returns { eligible } so the frontend can show a fallback screen before redirecting to Spotify."
+  })
+  @ApiQuery({ name: 'email', required: true, description: "The tester's Spotify account email" })
+  @ApiResponse({ status: 200, description: '{ eligible: boolean }' })
+  async checkEligibility(@Query('email') email?: string): Promise<{ eligible: boolean }> {
+    const eligible = await this.clientResolver.isRegistered(email);
+    return { eligible };
+  }
 
   private getCookie(req: Request, name: string): string | null {
     const cookieHeader = req.headers.cookie;
@@ -45,13 +62,27 @@ export class AuthController {
   }
 
   @Get("spotify/authorize")
+  @UseFilters(AuthRedirectFilter)
   @ApiOperation({
-    summary: 'Initiate the OAuth 2.0 flow to link a user’s Spotify account',
-    description: 'Redirects the user to Spotify for authentication and sets a state cookie for security.'
+    summary: "Initiate the OAuth 2.0 flow to link a user's Spotify account",
+    description: 'Resolves the user\'s Spotify test app by email, then redirects to Spotify and sets a state cookie for security.'
   })
+  @ApiQuery({ name: 'email', required: true, description: 'The tester\'s Spotify account email' })
   @ApiResponse({ status: 302, description: 'Redirecting to Spotify authorization page.' })
-  async authorizeSpotify(@Res() res: Response) {
-    const { url, state } = this.authService.getAuthorizationUrl();
+  @ApiResponse({ status: 400, description: 'Missing/invalid email or email not registered for testing.' })
+  async authorizeSpotify(
+    // _query drives @IsEmail validation + Swagger docs; the client is resolved
+    // from the email by SpotifyClientMiddleware (which runs before this handler).
+    @Query() _query: AuthorizeQueryDto,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const client = req.spotifyClient;
+    if (!client) {
+      throw new HttpException({ error: "Unable to resolve Spotify client" }, HttpStatus.BAD_REQUEST);
+    }
+
+    const { url, state } = this.authService.getAuthorizationUrl(client);
 
     res.cookie(OAUTH_STATE_COOKIE, state, {
       httpOnly: true,
@@ -64,6 +95,7 @@ export class AuthController {
   }
 
   @Get("spotify/callback")
+  @UseFilters(AuthRedirectFilter)
   @ApiOperation({
     summary: 'Handle Spotify OAuth callback',
     description: 'Exchanges the authorization code for access tokens and redirects to the frontend client.'
@@ -109,7 +141,12 @@ export class AuthController {
       secure: process.env.NODE_ENV === "production",
     });
 
-    const tokens = await this.authService.handleLogin(code);
+    const client = req.spotifyClient;
+    if (!client) {
+      throw new HttpException({ error: "Unable to resolve Spotify client" }, HttpStatus.BAD_REQUEST);
+    }
+
+    const tokens = await this.authService.handleLogin(code, client);
 
     const clientUrl = this.configService.get('CLIENT_URL') || "http://localhost:5173";
     const redirectUrl = new URL(clientUrl);

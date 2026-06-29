@@ -23,13 +23,13 @@ export class User {
     @Column({ nullable: true })
     profileImage?: string;
 
-    @Column({ nullable: true, select: false })
+    @Column({ type: 'varchar', nullable: true, select: false })
     spotifyRefreshToken?: string | null;
 
-    @Column({ nullable: true, select: false })
+    @Column({ type: 'varchar', nullable: true, select: false })
     spotifyAccessToken?: string | null;
 
-    @Column({ nullable: true, select: false })
+    @Column({ type: 'varchar', nullable: true, select: false })
     spotifyClientKey?: string | null;
 
     @Column({type: 'text', nullable: true, select: false })

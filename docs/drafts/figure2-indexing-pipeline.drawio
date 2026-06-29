@@ -1,0 +1,106 @@
+<mxfile host="65bd71144e">
+    <diagram id="jamon-indexing-pipeline" name="Figure 2 - Indexing Pipeline">
+        <mxGraphModel dx="702" dy="675" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="bg" value="" style="rounded=0;fillColor=#F5F7FA;strokeColor=none;" parent="1" vertex="1">
+                    <mxGeometry width="1169" height="855" as="geometry"/>
+                </mxCell>
+                <mxCell id="input_box" value="" style="rounded=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=2;shadow=1;arcSize=8;" parent="1" vertex="1">
+                    <mxGeometry x="244" y="30" width="680" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="input_title" value="&lt;b style=&quot;font-size:15px;&quot;&gt;Song Batch&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=bottom;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="326" y="40" width="570" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="input_sub" value="&lt;font color=&quot;#666&quot;&gt;POST /ingest-batch  ·  { title, artist } per track&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="326" y="68" width="570" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" value="title · artist" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=11;fontStyle=1;endArrow=block;endFill=1;strokeColor=#6C8EBF;strokeWidth=2;" parent="1" source="input_box" target="enrich_group" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="enrich_group" value="" style="rounded=1;fillColor=#FFF8E1;strokeColor=#D79B00;strokeWidth=2;arcSize=4;" parent="1" vertex="1">
+                    <mxGeometry x="164" y="170" width="840" height="165" as="geometry"/>
+                </mxCell>
+                <mxCell id="enrich_label" value="&lt;b&gt;Concurrent Enrichment&lt;/b&gt;  &lt;font color=&quot;#888&quot; style=&quot;font-size:11px;&quot;&gt;asyncio.gather&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="176" y="172" width="380" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="genius_box" value="" style="rounded=1;fillColor=#FFFFFF;strokeColor=#AA6600;strokeWidth=2;shadow=1;arcSize=8;" parent="1" vertex="1">
+                    <mxGeometry x="174" y="200" width="390" height="122" as="geometry"/>
+                </mxCell>
+                <mxCell id="genius_icon" value="🎵" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=30;" parent="1" vertex="1">
+                    <mxGeometry x="186" y="214" width="52" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="genius_title" value="&lt;b style=&quot;font-size:14px;&quot;&gt;Genius API&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#555&quot; style=&quot;font-size:12px;&quot;&gt;lyrics snippet&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="248" y="214" width="300" height="48" as="geometry"/>
+                </mxCell>
+                <mxCell id="genius_fallback" value="⚠ &lt;font color=&quot;#999&quot;&gt;fallback: tags only if lyrics unavailable&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=16;" parent="1" vertex="1">
+                    <mxGeometry x="186" y="268" width="366" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="lastfm_box" value="" style="rounded=1;fillColor=#FFFFFF;strokeColor=#CC0000;strokeWidth=2;shadow=1;arcSize=8;" parent="1" vertex="1">
+                    <mxGeometry x="604" y="200" width="390" height="122" as="geometry"/>
+                </mxCell>
+                <mxCell id="lastfm_icon" value="📻" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=30;" parent="1" vertex="1">
+                    <mxGeometry x="616" y="214" width="52" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="lastfm_title" value="&lt;b style=&quot;font-size:14px;&quot;&gt;Last.fm API&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#555&quot; style=&quot;font-size:12px;&quot;&gt;top 8 community tags&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="678" y="220" width="300" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" value="lyrics · tags" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=11;fontStyle=1;endArrow=block;endFill=1;strokeColor=#D79B00;strokeWidth=2;" parent="1" source="enrich_group" target="llm_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="llm_box" value="" style="rounded=1;fillColor=#FFFFFF;strokeColor=#6B4FBB;strokeWidth=2;shadow=1;arcSize=8;" parent="1" vertex="1">
+                    <mxGeometry x="244" y="395" width="680" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="llm_icon" value="🤖" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=34;" parent="1" vertex="1">
+                    <mxGeometry x="264" y="410" width="58" height="58" as="geometry"/>
+                </mxCell>
+                <mxCell id="llm_title" value="&lt;b style=&quot;font-size:15px;&quot;&gt;LLM Tagging&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=bottom;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="336" y="410" width="565" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="llm_sub" value="&lt;font color=&quot;#666&quot;&gt;Gemini Flash · NIM Llama-70b&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="336" y="438" width="565" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="pill_energy" value="energy_desc" style="rounded=1;fillColor=#EDE7F6;strokeColor=#6B4FBB;strokeWidth=1;fontSize=11;arcSize=30;" parent="1" vertex="1">
+                    <mxGeometry x="264" y="474" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="pill_mood" value="mood_desc" style="rounded=1;fillColor=#EDE7F6;strokeColor=#6B4FBB;strokeWidth=1;fontSize=11;arcSize=30;" parent="1" vertex="1">
+                    <mxGeometry x="396" y="474" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="pill_vibe" value="vibe_tags" style="rounded=1;fillColor=#EDE7F6;strokeColor=#6B4FBB;strokeWidth=1;fontSize=11;arcSize=30;" parent="1" vertex="1">
+                    <mxGeometry x="528" y="474" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="pill_embedding_text" value="&lt;b&gt;embedding_text&lt;/b&gt;" style="rounded=1;fillColor=#D1C4E9;strokeColor=#4A148C;strokeWidth=2;fontSize=11;arcSize=30;" parent="1" vertex="1">
+                    <mxGeometry x="660" y="474" width="148" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" value="embedding_text" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=11;fontStyle=1;endArrow=block;endFill=1;strokeColor=#6B4FBB;strokeWidth=2;" parent="1" source="llm_box" target="embed_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="embed_box" value="" style="rounded=1;fillColor=#FFFFFF;strokeColor=#2E7D32;strokeWidth=2;shadow=1;arcSize=8;" parent="1" vertex="1">
+                    <mxGeometry x="294" y="605" width="580" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="embed_icon" value="⚙" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=32;fontColor=#2E7D32;" parent="1" vertex="1">
+                    <mxGeometry x="312" y="618" width="50" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="embed_title" value="&lt;b style=&quot;font-size:15px;&quot;&gt;Embedding&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=bottom;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="374" y="618" width="480" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="embed_sub" value="&lt;font color=&quot;#666&quot;&gt;Gemini  3072-dim&amp;nbsp;&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="374" y="646" width="480" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" value="vector" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=11;fontStyle=1;endArrow=block;endFill=1;strokeColor=#2E7D32;strokeWidth=2;" parent="1" source="embed_box" target="vs_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="vs_box" value="" style="shape=mxgraph.flowchart.database;rounded=1;fillColor=#FFFFFF;strokeColor=#336791;strokeWidth=2;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="344" y="745" width="480" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="vs_title" value="&lt;b style=&quot;font-size:14px;&quot;&gt;Vector Store&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=bottom;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="406" y="768" width="400" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="vs_sub" value="&lt;font color=&quot;#666&quot; style=&quot;font-size:11px;&quot;&gt;pgvector (production)  ·  ChromaDB (local dev)&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="406" y="792" width="400" height="24" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

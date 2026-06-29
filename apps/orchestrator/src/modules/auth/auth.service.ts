@@ -65,7 +65,7 @@ export class AuthService {
     };
   }
 
-  private async triggerLibrarySync(spotifyAccessToken: string, userId: string): Promise<void> {
+  async triggerLibrarySync(spotifyAccessToken: string, userId: string): Promise<void> {
     try {
       const tracks = await this.spotifyService.getTopTracks(spotifyAccessToken);
       const songs = await this.songService.upsertSongsFromTracks(tracks);

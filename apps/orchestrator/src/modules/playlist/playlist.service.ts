@@ -2,7 +2,6 @@ import { Injectable, Logger, HttpException, HttpStatus } from "@nestjs/common";
 import { SpotifyService } from "../spotify/spotify.service";
 import { DataEngineService } from "../data-engine/data-engine.service";
 import { SongService } from "../song/song.service";
-import { CreatePlaylistDto } from "./dto/create-playlist.dto";
 import {
   PlaylistResponseDto,
   PlaylistError,
@@ -11,6 +10,7 @@ import {
 import { UserService } from "../user/user.service";
 import { EventsService } from "../event/event.service";
 import { SpotifyTrackMatch } from "../spotify/spotify.types";
+import { AuthService } from "../auth/auth.service";
 
 @Injectable()
 export class PlaylistService {
@@ -22,6 +22,7 @@ export class PlaylistService {
     private readonly userService: UserService,
     private readonly eventsService: EventsService,
     private readonly songService: SongService,
+    private readonly authService: AuthService,
   ) {}
 
   async generatePlaylist(
@@ -31,6 +32,43 @@ export class PlaylistService {
     this.logger.log(
       `[generatePlaylist] START — eventId="${eventId}"`,
     );
+
+    // Ensure every participant has a synced library before touching the vector DB.
+    const unsyncedUserIds = await this.songService.findParticipantsWithoutLikes(eventId);
+    if (unsyncedUserIds.length > 0) {
+      this.logger.log(
+        `[generatePlaylist] ${unsyncedUserIds.length} participant(s) have no liked songs — running library sync`,
+      );
+      await Promise.all(
+        unsyncedUserIds.map(async (participantId) => {
+          const participant = await this.userService.findByIdWithSpotifyToken(participantId);
+          if (!participant?.spotifyAccessToken) {
+            this.logger.warn(`[generatePlaylist] No Spotify token for participant ${participantId} — skipping sync`);
+            return;
+          }
+          await this.authService.triggerLibrarySync(participant.spotifyAccessToken, participantId);
+        }),
+      );
+      this.logger.log(`[generatePlaylist] Participant library sync complete`);
+    } else {
+      this.logger.log(`[generatePlaylist] All participants have a synced library`);
+    }
+
+    // Ensure every library song for this event has a vector before we query the DB.
+    const unembeddedLibrarySongs = await this.songService.findUnembeddedSongsForEvent(eventId);
+    if (unembeddedLibrarySongs.length > 0) {
+      this.logger.log(
+        `[generatePlaylist] ${unembeddedLibrarySongs.length} library song(s) missing embeddings — ingesting before recommend`,
+      );
+      const dtos = await this.dataEngineService.ingestBatch(
+        unembeddedLibrarySongs.map((s) => ({ title: s.name, artist: s.artistName })),
+      );
+      await this.songService.updateEmbeddings(dtos);
+      this.logger.log(`[generatePlaylist] Library sync complete — ${dtos.length} embedding(s) stored`);
+    } else {
+      this.logger.log(`[generatePlaylist] All library songs already embedded — skipping pre-ingest`);
+    }
+
     this.logger.log("[generatePlaylist] Calling data-engine /recommend...");
     const songs = await this.dataEngineService.getRecommendations(
       eventId

@@ -20,7 +20,7 @@ Personalized music recommendation engine. Generates event-specific Spotify playl
 │  3. Resolve LLM suggestions to Spotify track URIs       │
 │  4. Create playlist + add tracks on user's account      │
 └────────────────────────┬────────────────────────────────┘
-                         │  POST /recommend (songs + event description)
+                         │  POST /recommend (event_id)
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │              Data Engine  (FastAPI :8000)                │

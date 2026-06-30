@@ -54,8 +54,8 @@
 The Python service (`data-engine`) is internal and exposes:
 
 * `POST /ingest-batch`: Input: `List[{ title, artist, genres }]`. Output: `status: ok` (Triggers background scraping/tagging).
-* `POST /recommend`: Input: `{ event_description: str }`. Output: `List[{ title, artist, is_new }]`.
-* `GET /lyrics`: (Helper) Check cache or scrape specific track.
+* `POST /recommend`: Input: `{ event_id: str }`. Output: `List[{ title, artist, is_new }]`.
+* `POST /lyrics/batch`: (Helper) Bulk lyrics retrieval.
 
 ---
 

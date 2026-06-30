@@ -1,0 +1,5 @@
+# Acknowledgments
+
+The authors wish to express their sincere gratitude to Dr. Eliav Menachi for his expert guidance, constructive feedback, and steady mentorship throughout the development of this project. His insights into system design and his availability at every stage of the work were invaluable to the team's progress. The authors also thank the faculty and staff of the College of Management Academic Studies for providing the academic environment and infrastructure that made this work possible. [NEEDS INPUT — any additional faculty members or external advisors to acknowledge beyond Dr. Menachi?]
+
+The authors gratefully acknowledge the free-tier services of several external platforms without which prototyping and experimentation would not have been feasible: Genius, for access to lyric data; Last.fm, for community-sourced music tagging; and NVIDIA, for access to the NIM inference platform, which supplied the Llama-3.3-70b model central to the system's tagging and evaluation pipelines. Finally, the authors extend their deepest thanks to their families and friends for their patience and unwavering support throughout this endeavour.

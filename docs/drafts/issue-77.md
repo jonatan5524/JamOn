@@ -14,13 +14,13 @@ The client is a single-page application built with React 18, Vite, TanStack Quer
 
 The orchestrator is a NestJS TypeScript service running on port 3000. It acts as the central integration hub, coordinating between the Spotify Web API and the data engine. Its internal module structure comprises five domains:
 
-- **auth**: Implements the Spotify OAuth 2.0 authorization code flow, issues JWT tokens, and exposes a library synchronization trigger. Because Spotify's development mode imposes a five-user whitelist cap per registered application, the auth flow incorporates multi-client routing: on login, the user's email is submitted to the orchestrator, which consults a `SpotifyApp` table (clientId, clientSecret, currentCount) via a `SpotifyClientRegistry` to determine which registered app has capacity. A fill-to-cap assignment strategy routes new users to the first application with fewer than five whitelisted users; once capacity is reached, subsequent users are assigned to the next application. The resolved `spotifyAppId` is persisted on the User record so that token-refresh flows always use the same application credentials.
+- **auth**: Implements the Spotify OAuth 2.0 authorization code flow, issues JWT tokens, and exposes a library synchronization trigger.
 - **spotify**: Wraps all Spotify API calls — top-track fetching (`GET /v1/me/top/tracks`), track URI search (`GET /v1/search`), playlist creation (`POST /v1/me/playlists`), and batch artist genre fetching.
 - **event**: Manages the lifecycle of user events, including participant membership and QR-code joining.
 - **playlist**: Orchestrates the five-step playlist generation flow (described below) and computes per-participant contribution statistics using cosine similarity between participant average vectors and each track vector.
 - **data-engine**: An HTTP client module that issues `POST /recommend` requests to the Python service.
 
-The playlist generation flow proceeds as follows: (1) verify that all event participants have synced Spotify libraries and that all liked songs carry vector embeddings — any participant without a synced library is automatically triggered to sync before proceeding; (2) call `POST /recommend` on the data engine with only the event ID — the data engine independently queries the shared database for the event description and the indexed songs of all event participants; (3) resolve each returned song to a Spotify track URI via parallel search calls; (4) embed any new AI-suggested wildcard tracks that are not yet in the vector store; (5) create the Spotify playlist and add all resolved tracks to the user's account. This pre-generation sync step, introduced to ensure that recommendations reflect the full and current event library, guarantees that no participant's songs are silently omitted from the retrieval pool.
+The playlist module orchestrates a multi-step generation flow that coordinates library synchronization, data engine calls, Spotify URI resolution, and playlist creation; the full implementation is described in Section 3.3.
 
 ### Data Engine Service
 
@@ -28,7 +28,7 @@ The data engine is a FastAPI Python service running on port 8000. It handles all
 
 Internally, the service is organized into four layers:
 
-- **Providers**: An abstraction layer (`LLMProviderContainer`) that exposes four typed protocol slots — `EmbeddingProvider`, `TaggingProvider`, `DJProvider`, and `HyDEProvider` — backed by pluggable implementations for Gemini, NVIDIA NIM, and a local College/Ollama stack. Each non-embedding slot is wrapped by a `FailoverProvider` that implements a circuit-breaker strategy across the chain Gemini → NIM → College. The circuit trips after N consecutive failures — defined as HTTP 5xx errors, timeouts, 429 quota exhaustion responses, or structurally malformed 2xx payloads — within a rolling time window, routing all subsequent requests directly to the next provider until a configurable cooldown period elapses. Quota exhaustion (429) and hard errors (5xx) are both failover triggers but are logged at different severity levels. Failover state is held in process memory; no external coordination store is required at the current deployment scale.
+- **Providers**: An abstraction layer that supports pluggable LLM backends (Gemini, NVIDIA NIM, and a local College/Ollama stack), including automatic failover between providers. The provider abstraction and failover strategy are described in detail in Section 3.3.
 - **Services**: `enrichment.py` orchestrates concurrent Genius lyrics and Last.fm tag fetching; `rag.py` manages vector indexing and cosine-similarity retrieval against the vector store.
 - **Workflows**: `playlist_generator.py` implements the LangGraph agentic graph (described in Section 3.3).
 - **VectorDB**: A factory layer that instantiates either a ChromaDB in-memory collection (local development) or a pgvector-backed PostgreSQL store (production).

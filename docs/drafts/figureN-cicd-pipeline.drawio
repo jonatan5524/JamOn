@@ -1,0 +1,74 @@
+<mxfile host="65bd71144e">
+    <diagram id="jamon-cicd-pipeline" name="Figure N - CI/CD Pipeline">
+        <mxGraphModel dx="702" dy="675" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="bg" value="" style="rounded=0;fillColor=#F5F7FA;strokeColor=none;" parent="1" vertex="1">
+                    <mxGeometry width="1169" height="660" as="geometry"/>
+                </mxCell>
+                <mxCell id="trigger" value="&lt;b&gt;push to main&lt;/b&gt;&lt;br&gt;/ workflow_dispatch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=2;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="405" y="30" width="360" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="github-bg" value="" style="rounded=1;fillColor=#E3F2FD;strokeColor=#6C8EBF;strokeWidth=2;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="120" width="1109" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="github-label" value="GitHub-hosted Runners (ubuntu-latest)" style="text;html=0;strokeColor=none;fillColor=none;align=center;verticalAlign=top;fontStyle=1;fontSize=11;fontColor=#1565C0;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="124" width="1109" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="build-client" value="&lt;b&gt;Build &amp;amp; Push Client&lt;/b&gt;&lt;br&gt;apps/client → ghcr.io" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="55" y="168" width="280" height="72" as="geometry"/>
+                </mxCell>
+                <mxCell id="build-orchestrator" value="&lt;b&gt;Build &amp;amp; Push Orchestrator&lt;/b&gt;&lt;br&gt;apps/orchestrator → ghcr.io" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="445" y="168" width="280" height="72" as="geometry"/>
+                </mxCell>
+                <mxCell id="build-data-engine" value="&lt;b&gt;Build &amp;amp; Push Data Engine&lt;/b&gt;&lt;br&gt;apps/data-engine → ghcr.io" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="835" y="168" width="280" height="72" as="geometry"/>
+                </mxCell>
+                <mxCell id="registry" value="&lt;div&gt;&lt;b&gt;&lt;br&gt;&lt;/b&gt;&lt;/div&gt;&lt;b&gt;&lt;div&gt;&lt;b style=&quot;background-color: transparent;&quot;&gt;ghcr.io&lt;/b&gt;&lt;/div&gt;&lt;/b&gt;GitHub Container Registry" style="shape=mxgraph.flowchart.database;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#336791;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="475" y="351" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="colman-bg" value="" style="rounded=1;fillColor=#FFF8E1;strokeColor=#E65100;strokeWidth=2;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="465" width="570" height="155" as="geometry"/>
+                </mxCell>
+                <mxCell id="colman-label" value="Self-hosted Runner (colman) — College Server" style="text;html=0;strokeColor=none;fillColor=none;align=center;verticalAlign=top;fontStyle=1;fontSize=11;fontColor=#E65100;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="469" width="570" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="deploy" value="&lt;b&gt;Deploy&lt;/b&gt;&lt;br&gt;pull images → docker compose up -d → health-check (120 s) → image prune" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="335" y="510" width="500" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-t-bc" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.1;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#6C8EBF;strokeWidth=1.5;" parent="1" source="trigger" target="build-client" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-t-bo" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#6C8EBF;strokeWidth=1.5;" parent="1" source="trigger" target="build-orchestrator" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-t-bde" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.9;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#6C8EBF;strokeWidth=1.5;" parent="1" source="trigger" target="build-data-engine" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-bc-reg" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.2;entryY=0;entryDx=0;entryDy=0;strokeColor=#336791;strokeWidth=1.5;" parent="1" source="build-client" target="registry" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="195" y="315"/>
+                            <mxPoint x="519" y="315"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-bo-reg" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#336791;strokeWidth=1.5;" parent="1" source="build-orchestrator" target="registry" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-bde-reg" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.8;entryY=0;entryDx=0;entryDy=0;strokeColor=#336791;strokeWidth=1.5;" parent="1" source="build-data-engine" target="registry" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="975" y="315"/>
+                            <mxPoint x="651" y="315"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-reg-deploy" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#E65100;strokeWidth=2;" parent="1" source="registry" target="deploy" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

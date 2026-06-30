@@ -1,0 +1,72 @@
+<mxfile host="65bd71144e">
+    <diagram id="jamon-enrichment-pipeline" name="Figure N - Enrichment Pipeline">
+        <mxGraphModel dx="702" dy="675" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="bg" value="" style="rounded=0;fillColor=#F5F7FA;strokeColor=none;" parent="1" vertex="1">
+                    <mxGeometry width="1169" height="830" as="geometry"/>
+                </mxCell>
+                <mxCell id="input" value="&lt;b&gt;Unembedded songs&lt;/b&gt;&lt;br&gt;title · artist (from PostgreSQL via event_id)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=2;fontFamily=Helvetica;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="335" y="35" width="500" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="enrich-group" value="Stage 2 — Concurrent Enrichment (asyncio.gather + asyncio.to_thread)" style="swimlane;startSize=30;fillColor=#FFF8E1;strokeColor=#AA6600;strokeWidth=2;fontStyle=1;fontSize=11;fontFamily=Helvetica;" parent="1" vertex="1">
+                    <mxGeometry x="165" y="130" width="840" height="310" as="geometry"/>
+                </mxCell>
+                <mxCell id="genius" value="&lt;b&gt;① Genius Search API&lt;/b&gt;&lt;br&gt;HTML parse → clean → 800-char snippet" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#AA6600;strokeWidth=2;fontFamily=Helvetica;fontSize=11;" parent="enrich-group" vertex="1">
+                    <mxGeometry x="20" y="50" width="350" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="lastfm" value="&lt;b&gt;② Last.fm track.getTopTags&lt;/b&gt;&lt;br&gt;Top-8 community tags" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#AA6600;strokeWidth=2;fontFamily=Helvetica;fontSize=11;" parent="enrich-group" vertex="1">
+                    <mxGeometry x="470" y="50" width="350" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="enriched" value="&lt;b&gt;EnrichedSong&lt;/b&gt;&lt;br&gt;(title, artist, lyrics_snippet, lastfm_tags)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;strokeWidth=2;fontFamily=Helvetica;fontSize=11;" parent="enrich-group" vertex="1">
+                    <mxGeometry x="220" y="190" width="400" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="a3" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;strokeColor=#6C8EBF;strokeWidth=1.5;" parent="enrich-group" source="genius" target="enriched" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a4" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;strokeColor=#6C8EBF;strokeWidth=1.5;" parent="enrich-group" source="lastfm" target="enriched" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="llm-tagging" value="&lt;b&gt;Stage 3 — LLM Tagging (Gemini 1.5 Flash)&lt;/b&gt;&lt;br&gt;vibe_tags · lyric_mood_tags · embedding_text" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B4FBB;strokeWidth=2;fontFamily=Helvetica;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="335" y="490" width="500" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="embedding" value="&lt;b&gt;Stage 4 — Embedding&lt;/b&gt;&lt;br&gt;build_embedding_text() + embed_documents()&lt;br&gt;3072-dim (Gemini) / 384-dim (College)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E7D32;strokeWidth=2;fontFamily=Helvetica;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="335" y="615" width="500" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="storage" value="&lt;div&gt;&lt;b&gt;&lt;br&gt;&lt;/b&gt;&lt;/div&gt;&lt;b&gt;&lt;div&gt;&lt;b&gt;&lt;br&gt;&lt;/b&gt;&lt;/div&gt;Stage 5 — Storage&lt;/b&gt;&lt;br&gt;PostgreSQL + pgvector (production)&lt;br&gt;ChromaDB in-memory (local dev)" style="shape=mxgraph.flowchart.database;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#336791;strokeWidth=2;fontFamily=Helvetica;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="335" y="740" width="500" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="a1" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#AA6600;strokeWidth=1.5;" parent="1" source="input" target="genius" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="460" y="125"/>
+                            <mxPoint x="360" y="125"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="a2" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#AA6600;strokeWidth=1.5;" parent="1" source="input" target="lastfm" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="710" y="125"/>
+                            <mxPoint x="810" y="125"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="a5" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#6B4FBB;strokeWidth=1.5;" parent="1" source="enriched" target="llm-tagging" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="585" y="458"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="a6" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#2E7D32;strokeWidth=1.5;" parent="1" source="llm-tagging" target="embedding" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a7" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#336791;strokeWidth=1.5;" parent="1" source="embedding" target="storage" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

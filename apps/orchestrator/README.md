@@ -19,7 +19,7 @@ POST /playlists/generate  (Authorization: Bearer <spotify_token>)
     │
     ├── 2. DataEngineService.getRecommendations()
     │        └── POST http://data-engine:8000/recommend
-    │             body: { event_description, songs: [...] }
+    │             body: { event_id: string }
     │             → List<{ title, artist, is_new }>
     │
     ├── 3. SpotifyService.searchTracks() (parallel)

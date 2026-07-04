@@ -1149,8 +1149,10 @@ async def test_ingest_batch_enriches_before_tagging_and_batch_embeds():
     ]
 
     fake_tagged = [
-        {"title": "Song A", "artist": "Artist A", "embedding_text": "Song A vibe tags text"},
-        {"title": "Song B", "artist": "Artist B", "embedding_text": "Song B vibe tags text"},
+        {"title": "Song A", "artist": "Artist A", "energy_desc": "High-energy, driving",
+         "mood_desc": "Nostalgic, bittersweet", "embedding_text": "Song A vibe tags text"},
+        {"title": "Song B", "artist": "Artist B", "energy_desc": "Calm, sparse",
+         "mood_desc": "Defiant, triumphant", "embedding_text": "Song B vibe tags text"},
     ]
     fake_vectors = [[0.1] * 10, [0.2] * 10]
 
@@ -1192,6 +1194,8 @@ async def test_ingest_batch_enriches_before_tagging_and_batch_embeds():
         assert len(body) == 2
         assert body[0]["name"] == "Song A"
         assert body[0]["embedding"] == [0.1] * 10
+        assert body[0]["energy_desc"] == "High-energy, driving"
+        assert body[0]["mood_desc"] == "Nostalgic, bittersweet"
 
 
 def test_library_anchor_artists_dedupes_and_skips_empty():

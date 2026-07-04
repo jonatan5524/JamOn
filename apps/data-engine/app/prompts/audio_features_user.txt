@@ -29,6 +29,8 @@ This string is embedded and compared against event-vibe queries, so it must maxi
 
 **Title/artist fields:** Copy `title` and `artist` back EXACTLY as given in the input for each song — same spelling, punctuation, and casing. Do not correct, normalize, translate, or add/remove "feat." annotations. Return the songs in the same order they were given.
 
+**How to write `energy_desc` and `mood_desc`:** Short 2-4 word natural-language labels, not full sentences. `energy_desc` captures energy/tempo/intensity (e.g. "High-energy, driving"; "Calm, sparse"). `mood_desc` captures valence/emotional tone (e.g. "Nostalgic, bittersweet"; "Defiant, triumphant"). These are concise tags for display and fallback embedding, separate from the fuller `embedding_text`.
+
 **Required Output Schema (JSON):**
 [
   {
@@ -37,6 +39,8 @@ This string is embedded and compared against event-vibe queries, so it must maxi
     "artist": "Artist Name",
     "vibe_tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
     "lyric_mood_tags": ["mood1", "mood2"],
+    "energy_desc": "High-energy, driving",
+    "mood_desc": "Defiant, triumphant",
     "embedding_text": "Frantic, high-energy and aggressive, with a defiant, triumphant mood. Fast-paced and driving, built for hype rather than dancing. Hard-hitting electronic hip-hop with dense, forceful vocals."
   }
 ]

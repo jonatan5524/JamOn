@@ -20,14 +20,15 @@ from app.services.lyrics import fetch_lyrics_map
 from app.services.rag import RagEngine
 from app.workflows.playlist_generator import PlaylistGraphBuilder
 from app.core.config import settings
+from app.services.validator import ValidationResult
 
-async def mock_uri_validator(song: dict) -> bool:
+async def mock_uri_validator(song: dict) -> ValidationResult:
     """
     Mock validator for local testing without the NestJS orchestrator.
     In this mock, we assume all songs are valid.
     """
     print(f"   [Mock Validator] Checking: {song.get('title')} by {song.get('artist')}... VALID")
-    return True
+    return ValidationResult.VALID
 
 def get_user_songs(user_name: str):
     """

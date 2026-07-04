@@ -27,6 +27,8 @@ This string is embedded and compared against event-vibe queries, so it must maxi
 - Do NOT open every entry with the same boilerplate stem (e.g. "A high-energy, fast-paced X song that..."). Vary the wording so two different-feeling songs produce clearly different text.
 - Keep it to 1-2 sentences focused purely on how the song *feels and sounds*. Do NOT include the title, artist, or any lyric phrases.
 
+**Title/artist fields:** Copy `title` and `artist` back EXACTLY as given in the input for each song — same spelling, punctuation, and casing. Do not correct, normalize, translate, or add/remove "feat." annotations. Return the songs in the same order they were given.
+
 **Required Output Schema (JSON):**
 [
   {

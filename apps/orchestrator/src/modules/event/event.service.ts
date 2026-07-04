@@ -390,7 +390,7 @@ export class EventsService {
         topScore <= 0
           ? []
           : scores
-              .filter((item, index) => index < 2 || item.score >= topScore * 0.95)
+              .filter((item) => item.score >= topScore * 0.85)
               .slice(0, 3)
               .map((item) => item.participantId);
 

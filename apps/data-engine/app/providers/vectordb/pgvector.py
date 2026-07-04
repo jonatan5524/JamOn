@@ -41,7 +41,8 @@ class PgVectorStore:
                 cur.execute(
                     """
                     SELECT s.name, s.artist_name,
-                           (s.embedding <=> %s::vector) AS distance
+                           (s.embedding <=> %s::vector) AS distance,
+                           s.vibe_tags, s.energy_desc, s.mood_desc
                     FROM songs s
                     WHERE s.id IN (
                         SELECT sl.song_id
@@ -61,14 +62,14 @@ class PgVectorStore:
             return []
 
         retrieved, filtered = [], []
-        for name, artist_name, distance in rows:
+        for name, artist_name, distance, vibe_tags, energy_desc, mood_desc in rows:
             meta = {
                 "title": name,
                 "artist": artist_name,
                 "distance": float(distance),
-                "vibe_tags": [],
-                "energy_desc": "",
-                "mood_desc": "",
+                "vibe_tags": vibe_tags or [],
+                "energy_desc": energy_desc or "",
+                "mood_desc": mood_desc or "",
             }
             retrieved.append(meta)
             if float(distance) <= max_distance:

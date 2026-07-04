@@ -8,9 +8,7 @@ logger = logging.getLogger(__name__)
 TARGET_PLAYLIST_SIZE = 20
 
 DEFAULTS = {
-    "n_results": 20,
     "max_distance": 0.7,
-    "target_wildcards": 5,
     "strong_match_margin": 0.10,
 }
 
@@ -42,19 +40,16 @@ def load_tuned_params() -> dict:
 
 
 def scale_params_to_target(params: dict, target_size: int = TARGET_PLAYLIST_SIZE) -> dict:
-    """Scale n_results and target_wildcards proportionally to hit target_size songs.
+    """Set a generous retrieval pool size, independent of the tuned ratio.
 
-    The eval finds the optimal quality ratio (e.g. 5 library : 3 wildcard). This
-    function preserves that ratio while scaling the absolute counts to produce a
-    playlist of target_size songs.
+    The eval loop used to tune n_results/target_wildcards at a 12-song scale (e.g.
+    n_results=5). Proportionally scaling that up to a 20-song target used to cap
+    retrieval at ~8 candidates regardless of library quality, forcing >=60%
+    AI-generated wildcards even when the group's library was a great match.
+    Retrieval sizing is now just a generous multiple of the target; the
+    strong-match margin and spine cap in initial_fetch() do the real selection,
+    so a bigger pool only gives them more to choose from.
     """
-    base_total = params["n_results"] + params["target_wildcards"]
-    if base_total == 0:
-        return params
-    scale = target_size / base_total
-    n_results = max(1, round(params["n_results"] * scale))
-    target_wildcards = max(0, target_size - n_results)
     scaled = dict(params)
-    scaled["n_results"] = n_results
-    scaled["target_wildcards"] = target_wildcards
+    scaled["n_results"] = max(30, 2 * target_size)
     return scaled

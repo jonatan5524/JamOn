@@ -26,6 +26,7 @@ The model returns a JSON array, one object per song, containing:
 
 - `vibe_tags` — a list of descriptive labels (e.g., "high-energy", "driving", "electronic")
 - `lyric_mood_tags` — two to three short mood labels distilled from the lyrics feel (e.g., "defiant", "triumphant")
+- `energy_desc` / `mood_desc` — short 2-4 word natural-language labels (e.g., "High-energy, driving" / "Defiant, triumphant") capturing energy/intensity and valence/emotional tone respectively, used as concise display tags and as a fallback embedding input
 - `embedding_text` — a one-to-two sentence prose string engineered to maximise vibe contrast between songs
 
 ### Stage 4 — Embedding Text Construction and Vectorisation
@@ -40,4 +41,4 @@ All embedding texts are submitted in a single `embed_documents()` call. Gemini p
 
 ### Stage 5 — Storage
 
-The data engine returns `IngestedSong` objects (name, artist, float vector) to the orchestrator, which writes the embeddings to PostgreSQL via `updateEmbeddings()`. In production the pgvector extension handles vector storage; for local development the data engine uses an ephemeral in-memory ChromaDB collection. The collection is named `songs_{provider_id}_{dims}` (e.g., `songs_gemini_3072`); a dimension mismatch raises a `CollectionMismatchError` before any record is written. Lyrics are not cached between ingest calls. If Genius is unavailable, `lyrics_snippet` remains `None` and the embedding proceeds on vibe tags alone with no service interruption.
+The data engine returns `IngestedSong` objects (name, artist, float vector, `vibe_tags`, `energy_desc`, `mood_desc`) to the orchestrator, which writes the embeddings and vibe metadata to PostgreSQL via `updateEmbeddings()`. The `songs` table carries dedicated `vibe_tags` (jsonb), `energy_desc`, and `mood_desc` (text) columns, added additively via TypeORM's `synchronize: true`, so this metadata persists end-to-end rather than being recomputed at retrieval time. Song identity (`name`/`artist_name`) in the returned `IngestedSong` is always taken from the original input track rather than the tagger's echoed JSON, guarding against an LLM respelling (casing, punctuation, "feat." normalisation) silently breaking the exact-match lookup used by `updateEmbeddings()`. In production the pgvector extension handles vector storage; for local development the data engine uses an ephemeral in-memory ChromaDB collection. The collection is named `songs_{provider_id}_{dims}` (e.g., `songs_gemini_3072`); a dimension mismatch raises a `CollectionMismatchError` before any record is written. Lyrics are not cached between ingest calls. If Genius is unavailable, `lyrics_snippet` remains `None` and the embedding proceeds on vibe tags alone with no service interruption.

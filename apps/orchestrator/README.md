@@ -14,7 +14,7 @@ POST /playlists/generate  (Authorization: Bearer <spotify_token>)
     PlaylistService
     │
     ├── 1. SpotifyService.getTopTracks()
-    │        └── GET /v1/me/top/tracks (top 30)
+    │        └── GET /v1/me/top/tracks (top 50)
     │             → List<{ title, artist }>
     │
     ├── 2. DataEngineService.getRecommendations()

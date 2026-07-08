@@ -314,7 +314,7 @@ Written narrative: explain each service's responsibility, the REST API between t
 
 1. **Provider abstraction** — `LLMProviderContainer` with 4 typed protocol slots (EmbeddingProvider, TaggingProvider, DJProvider, HyDEProvider). Include the provider mode table (gemini/college/nim). Explain why the abstraction exists: cost, availability, switching without code changes.
 2. **HyDE implementation** — how a short event description ("late night study") is expanded into a rich synthetic document ("Slow tempo, acoustic, introspective lyrics..."); why this bridges the semantic gap.
-3. **LangGraph workflow** — the 5-node graph: `initial_fetch` → `validate` → `should_finalize` → `regenerate`/`merge_and_shuffle`. Include the graph diagram from README.md as a figure.
+3. **LangGraph workflow** — 4 nodes (`initial_fetch`, `validate`, `regenerate`, `merge_and_shuffle`) plus the `should_finalize` conditional-edge router. Include the graph diagram from README.md as a figure.
 4. **Strong spine logic** — explain the relative margin (`best_distance + strong_match_margin`) vs. why absolute thresholds fail for text embeddings (narrow 0.20–0.35 band).
 5. **Dynamic wildcard target** — `max(min_wildcards, playlist_size - spine_size)`, with over-provisioning factor (2.0×).
 6. **Resilience** — circuit breaker + exponential backoff via `@with_resilience` decorator.

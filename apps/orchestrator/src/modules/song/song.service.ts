@@ -143,6 +143,39 @@ export class SongService {
         }
     }
 
+    /**
+     * Returns user IDs of event participants who have zero liked songs.
+     * Used to detect participants whose library has never been synced.
+     */
+    async findParticipantsWithoutLikes(eventId: string): Promise<string[]> {
+        const rows: { user_id: string }[] = await this.songLikeRepository.manager.query(
+            `SELECT ep.user_id
+             FROM event_participants ep
+             WHERE ep.event_id = $1
+               AND NOT EXISTS (
+                   SELECT 1 FROM song_likes sl WHERE sl.user_id = ep.user_id
+               )`,
+            [eventId],
+        );
+        return rows.map((r) => r.user_id);
+    }
+
+    /**
+     * Returns songs liked by any participant of the event that have no embedding yet.
+     * Used to identify the delta that must be ingested before running a recommendation.
+     */
+    async findUnembeddedSongsForEvent(eventId: string): Promise<Pick<Song, 'name' | 'artistName'>[]> {
+        return this.songRepository
+            .createQueryBuilder('song')
+            .innerJoin('song_likes', 'sl', 'sl.song_id = song.id')
+            .innerJoin('event_participants', 'ep', 'ep.user_id = sl.user_id')
+            .where('ep.event_id = :eventId', { eventId })
+            .andWhere('song.embedding IS NULL')
+            .select(['song.name', 'song.artistName'])
+            .distinct(true)
+            .getMany();
+    }
+
     async findById(id: string): Promise<Song> {
         const song = await this.songRepository.findOne({ where: { id } });
         if (!song) {

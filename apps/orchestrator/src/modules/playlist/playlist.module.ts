@@ -6,9 +6,10 @@ import { SongModule } from "../song/song.module";
 import { PlaylistController } from "./playlist.controller";
 import { PlaylistService } from "./playlist.service";
 import { UserModule } from "../user/user.module";
+import { AuthModule } from "../auth/auth.module";
 
 @Module({
-  imports: [SpotifyModule, DataEngineModule, forwardRef(() => EventModule), UserModule, SongModule],
+  imports: [SpotifyModule, DataEngineModule, forwardRef(() => EventModule), UserModule, SongModule, AuthModule],
   controllers: [PlaylistController],
   providers: [PlaylistService],
   exports: [PlaylistService],

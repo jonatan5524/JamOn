@@ -35,7 +35,13 @@ export type EventWithRole = Event & {
   playlistTracks?: PlaylistTrackSummary[];
 };
 
-const parseEmbedding = (embedding: string | number[] | null | undefined): Vector | null => {
+export type EventListItem = Event & {
+  participantCount: number;
+};
+
+const parseEmbedding = (
+  embedding: string | number[] | null | undefined,
+): Vector | null => {
   if (!embedding) return null;
   if (Array.isArray(embedding)) return embedding;
   try {
@@ -77,7 +83,9 @@ const cosineSimilarity = (a: Vector | null, b: Vector | null): number => {
   return dot / (Math.sqrt(aMag) * Math.sqrt(bMag));
 };
 
-const roundToHundred = (values: Array<{ id: string; value: number }>): Map<string, number> => {
+const roundToHundred = (
+  values: Array<{ id: string; value: number }>,
+): Map<string, number> => {
   const total = values.reduce((sum, item) => sum + item.value, 0);
   if (total <= 0) return new Map(values.map((item) => [item.id, 0]));
 
@@ -120,23 +128,25 @@ export class EventsService {
       try {
         // Event + creator's participant row commit together so a new event
         // is never left without its host as a member.
-        return await this.eventRepository.manager.transaction(async (manager) => {
-          const newEvent = manager.create(Event, {
-            title: createEventDto.title,
-            context: createEventDto.context,
-            code: generateEventCode(),
-            creator: { id: userId } as any,
-          });
-          const saved = await manager.save(newEvent);
+        return await this.eventRepository.manager.transaction(
+          async (manager) => {
+            const newEvent = manager.create(Event, {
+              title: createEventDto.title,
+              context: createEventDto.context,
+              code: generateEventCode(),
+              creator: { id: userId } as any,
+            });
+            const saved = await manager.save(newEvent);
 
-          const participant = manager.create(EventParticipant, {
-            eventId: saved.id,
-            userId,
-          });
-          await manager.save(participant);
+            const participant = manager.create(EventParticipant, {
+              eventId: saved.id,
+              userId,
+            });
+            await manager.save(participant);
 
-          return saved;
-        });
+            return saved;
+          },
+        );
       } catch (err) {
         if (
           err instanceof QueryFailedError &&
@@ -154,7 +164,8 @@ export class EventsService {
 
   private roleFor(event: Event, userId: string): EventRoleType | null {
     if (event.creator?.id === userId) return "creator";
-    if (event.participants?.some((p) => p.userId === userId)) return "participant";
+    if (event.participants?.some((p) => p.userId === userId))
+      return "participant";
     return null;
   }
 
@@ -300,19 +311,26 @@ export class EventsService {
     }
   }
 
-  async findByUserId(userId: string): Promise<Event[]> {
-    return await this.eventRepository.find({
+  async findByUserId(userId: string): Promise<EventListItem[]> {
+    const events = await this.eventRepository.find({
       where: [
         { participants: { userId: userId } },
         { creator: { id: userId } },
       ],
+      relations: ["participants"],
       order: {
         createdAt: "DESC",
       },
     });
+
+    return events.map((event) =>
+      Object.assign(event, { participantCount: event.participants.length }),
+    );
   }
 
-  private async calculateStatisticsForEvent(event: Event): Promise<EventStatistics> {
+  private async calculateStatisticsForEvent(
+    event: Event,
+  ): Promise<EventStatistics> {
     if (!event.participants?.length) {
       return {
         playlistMatchPercent: 0,
@@ -341,7 +359,9 @@ export class EventsService {
       };
     }
 
-    const participantIds = event.participants.map((participant) => participant.userId);
+    const participantIds = event.participants.map(
+      (participant) => participant.userId,
+    );
     const likes = await this.songLikeRepository.find({
       where: { userId: In(participantIds) },
       relations: ["song"],
@@ -358,7 +378,9 @@ export class EventsService {
 
     const tasteVectors = new Map<string, Vector>();
     for (const participantId of participantIds) {
-      const vector = averageVectors(vectorsByParticipant.get(participantId) ?? []);
+      const vector = averageVectors(
+        vectorsByParticipant.get(participantId) ?? [],
+      );
       if (vector) tasteVectors.set(participantId, vector);
     }
 
@@ -370,7 +392,10 @@ export class EventsService {
           participantId,
           score: Math.max(
             0,
-            cosineSimilarity(trackVector, tasteVectors.get(participantId) ?? null),
+            cosineSimilarity(
+              trackVector,
+              tasteVectors.get(participantId) ?? null,
+            ),
           ),
         }))
         .sort((a, b) => b.score - a.score);

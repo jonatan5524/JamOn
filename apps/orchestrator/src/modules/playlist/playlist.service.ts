@@ -1,7 +1,8 @@
 import { Injectable, Logger, HttpException, HttpStatus } from "@nestjs/common";
 import { SpotifyService } from "../spotify/spotify.service";
 import { DataEngineService } from "../data-engine/data-engine.service";
-import { SongService } from "../song/song.service";
+import { SongService, songKey } from "../song/song.service";
+import { CreatePlaylistDto } from "./dto/create-playlist.dto";
 import {
   PlaylistResponseDto,
   PlaylistError,
@@ -159,19 +160,29 @@ export class PlaylistService {
 
     const unembedded = savedSongs.filter((song) => !song.embedding);
 
-    const playlistTracks: PlaylistTrackResultDto[] = resolvedTracks.map(
-      (track, index) => {
-        const song = savedSongs[index];
-        return {
-          songId: song.id,
-          title: song.name,
-          artist: song.artistName,
-          spotifyUri: track.uri,
-          spotifyUrl: track.url,
-          position: index + 1,
-        };
-      },
+    const savedSongsByKey = new Map(
+      savedSongs.map((song) => [songKey(song.name, song.artistName), song]),
     );
+
+    const playlistTracks: PlaylistTrackResultDto[] = [];
+    for (const track of resolvedTracks) {
+      const song = savedSongsByKey.get(songKey(track.title, track.artist));
+      if (!song) {
+        this.logger.warn(
+          `[generatePlaylist] No saved song row for resolved track "${track.title}" by ${track.artist}; omitting from tracks list`,
+        );
+        notFound.push(`${track.title} by ${track.artist}`);
+        continue;
+      }
+      playlistTracks.push({
+        songId: song.id,
+        title: song.name,
+        artist: song.artistName,
+        spotifyUri: track.uri,
+        spotifyUrl: track.url,
+        position: playlistTracks.length + 1,
+      });
+    }
 
     // 3. Create the playlist
 

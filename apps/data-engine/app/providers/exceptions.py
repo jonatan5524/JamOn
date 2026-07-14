@@ -15,3 +15,6 @@ class ProviderResponseError(Exception):
 
 class CollectionMismatchError(Exception):
     pass
+
+class ValidatorUnavailableError(Exception):
+    pass

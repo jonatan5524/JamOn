@@ -42,3 +42,14 @@ def test_tagging_prompt_requests_lyric_mood_tags():
     with open(path) as f:
         content = f.read()
     assert "lyric_mood_tags" in content
+
+
+def test_tagging_prompt_requests_energy_and_mood_desc():
+    import os
+    path = os.path.join(
+        os.path.dirname(__file__), "..", "prompts", "audio_features_user.txt"
+    )
+    with open(path) as f:
+        content = f.read()
+    assert "energy_desc" in content
+    assert "mood_desc" in content

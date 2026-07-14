@@ -29,6 +29,9 @@ export class DataEngineService {
         name: item.name,
         artistName: item.artist_name ?? item.artistName,
         embedding: item.embedding,
+        vibeTags: item.vibe_tags ?? item.vibeTags,
+        energyDesc: item.energy_desc ?? item.energyDesc,
+        moodDesc: item.mood_desc ?? item.moodDesc,
       }));
     } catch (error: any) {
       this.logger.error(`Failed to ingest batch: ${error.message}`);

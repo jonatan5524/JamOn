@@ -1,12 +1,12 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { DataEngineService } from '../src/modules/data-engine/data-engine.service';
-import { HttpService } from '@nestjs/axios';
-import { of, throwError } from 'rxjs';
-import { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import { HttpStatus, HttpException } from '@nestjs/common';
-import { PlaylistError } from '../src/modules/playlist/dto/playlist-response.dto';
+import { Test, TestingModule } from "@nestjs/testing";
+import { DataEngineService } from "../src/modules/data-engine/data-engine.service";
+import { HttpService } from "@nestjs/axios";
+import { of, throwError } from "rxjs";
+import { AxiosResponse, InternalAxiosRequestConfig } from "axios";
+import { HttpStatus, HttpException } from "@nestjs/common";
+import { PlaylistError } from "../src/modules/playlist/dto/playlist-response.dto";
 
-describe('DataEngineService (Resilience)', () => {
+describe("DataEngineService (Resilience)", () => {
   let service: DataEngineService;
   let httpService: HttpService;
 
@@ -27,19 +27,21 @@ describe('DataEngineService (Resilience)', () => {
     httpService = module.get<HttpService>(HttpService);
   });
 
-  it('should throw AI_SERVICE_BUSY when data-engine returns 429', async () => {
+  it("should throw AI_SERVICE_BUSY when data-engine returns 429", async () => {
     const errorResponse = {
       response: {
         status: HttpStatus.TOO_MANY_REQUESTS,
-        data: { detail: 'Gemini API Rate Limit Exceeded' },
+        data: { detail: "Gemini API Rate Limit Exceeded" },
       },
     };
 
-    jest.spyOn(httpService, 'post').mockReturnValue(throwError(() => errorResponse));
+    jest
+      .spyOn(httpService, "post")
+      .mockReturnValue(throwError(() => errorResponse));
 
     try {
-      await service.getRecommendations('test', []);
-      fail('Should have thrown an error');
+      await service.getRecommendations("test");
+      fail("Should have thrown an error");
     } catch (e: any) {
       expect(e).toBeInstanceOf(HttpException);
       expect(e.getResponse().error).toBe(PlaylistError.AI_SERVICE_BUSY);
@@ -47,19 +49,23 @@ describe('DataEngineService (Resilience)', () => {
     }
   });
 
-  it('should throw AI_SERVICE_BUSY when data-engine returns 503 (Circuit OPEN)', async () => {
+  it("should throw AI_SERVICE_BUSY when data-engine returns 503 (Circuit OPEN)", async () => {
     const errorResponse = {
       response: {
         status: HttpStatus.SERVICE_UNAVAILABLE,
-        data: { detail: 'AI Service currently unavailable (Circuit Breaker OPEN)' },
+        data: {
+          detail: "AI Service currently unavailable (Circuit Breaker OPEN)",
+        },
       },
     };
 
-    jest.spyOn(httpService, 'post').mockReturnValue(throwError(() => errorResponse));
+    jest
+      .spyOn(httpService, "post")
+      .mockReturnValue(throwError(() => errorResponse));
 
     try {
-      await service.getRecommendations('test', []);
-      fail('Should have thrown an error');
+      await service.getRecommendations("test");
+      fail("Should have thrown an error");
     } catch (e: any) {
       expect(e).toBeInstanceOf(HttpException);
       expect(e.getResponse().error).toBe(PlaylistError.AI_SERVICE_BUSY);

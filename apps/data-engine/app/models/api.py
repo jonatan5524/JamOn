@@ -28,3 +28,6 @@ class IngestedSong(BaseModel):
     name: str = Field(..., example="Levitating")
     artist_name: str = Field(..., serialization_alias="artistName", example="Dua Lipa")
     embedding: List[float] = Field(..., description="Vector embedding produced for the song")
+    vibe_tags: List[str] = Field(default_factory=list, description="Descriptive vibe tags from tagging")
+    energy_desc: str = Field("", description="Description of the song's energy level")
+    mood_desc: str = Field("", description="Description of the song's mood")

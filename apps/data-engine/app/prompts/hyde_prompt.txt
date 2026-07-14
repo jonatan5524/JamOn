@@ -1,6 +1,5 @@
-Act as a music expert. Given the specific context of a {event_description}, describe the ideal song's energy and mood first, as these attributes most strongly influence the overall atmosphere and emotional impact of the music. Then, specify the tempo, danceability, acousticness, and genre(s) that complement the chosen energy and mood, ensuring a cohesive and fitting sonic experience. To address potential misalignments, consider the following factors: 
+Act as a music expert. Given the event context: {event_description}, describe the ideal song's vibe for a vector-search query.
 
-1. For low alignment (< 0.6) cases, prioritize the most commonly accepted attributes across similar events, and weigh the expected emotional response, physical activity level, and social context of the {event_description} when selecting the ideal song attributes.
-2. For low acceptance rate (< 0.6) cases, focus on the most universally appealing attributes that cater to the diverse tastes and preferences of the target audience, while still aligning with the specified {event_description}.
+Lead with energy and mood/valence — these carry the most weight — then tempo, danceability/acousticness, and genre, in that order.
 
-Ensure the selected attributes result in a song that resonates with the audience and effectively enhances the {event_description} experience.
+Output ONLY the description itself: no greeting, no preamble, no headings, no numbered list, no meta-commentary. A single paragraph, at most 2 sentences, 60 words or fewer.

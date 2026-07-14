@@ -5,6 +5,8 @@ from typing import List, Dict, Any, Callable, Awaitable
 from langgraph.graph import StateGraph, START, END
 
 from app.models.state import PlaylistState
+from app.providers.exceptions import ValidatorUnavailableError
+from app.services.validator import ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +15,7 @@ class PlaylistGraphBuilder:
         self,
         llm_generator: Callable[[str, int, List[str], List[Dict[str, Any]], List[str]], Awaitable[List[Dict[str, Any]]]],
         db_fetcher: Callable[[str], Awaitable[List[Dict[str, Any]]]],
-        uri_validator: Callable[[Dict[str, Any]], Awaitable[bool]],
+        uri_validator: Callable[[Dict[str, Any]], Awaitable[ValidationResult]],
         target_playlist_size: int = 20,
         min_wildcards: int = 3,
         strong_match_margin: float = 0.10,
@@ -102,36 +104,55 @@ class PlaylistGraphBuilder:
         }
 
     async def validate(self, state: PlaylistState) -> Dict[str, Any]:
-        logger.info(f"Validating {len(state.candidate_wildcards)} candidate wildcards")
+        # Retry previously-errored candidates alongside the newly generated ones —
+        # a validator ERROR means "unknown", not "rejected", so it deserves another shot.
+        candidates = state.candidate_wildcards + state.errored_wildcards
+        logger.info(f"Validating {len(candidates)} candidate wildcards")
         validated = list(state.validated_wildcards)
         rejected = list(state.rejected_wildcards)
-        candidates = state.candidate_wildcards
-        
+        errored: List[Dict[str, Any]] = []
+
         if candidates:
             # Parallel async validation using the injected uri_validator
             validation_results = await asyncio.gather(*(self.uri_validator(song) for song in candidates))
-            for song, is_valid in zip(candidates, validation_results):
-                if is_valid:
+            for song, result in zip(candidates, validation_results):
+                if result == ValidationResult.VALID:
                     validated.append(song)
                     logger.info(
                         f"  [wildcard ACCEPTED] {song.get('title', 'Unknown')} "
                         f"— {song.get('artist', 'Unknown')}"
                     )
+                elif result == ValidationResult.ERROR:
+                    errored.append(song)
+                    logger.warning(
+                        f"  [wildcard ERROR] {song.get('title', 'Unknown')} "
+                        f"— {song.get('artist', 'Unknown')} (validator unavailable, will retry)"
+                    )
                 else:
                     song_name = f"{song.get('title', 'Unknown')} by {song.get('artist', 'Unknown')}"
                     rejected.append(song_name)
                     logger.warning(f"Rejected song: {song_name}")
-                    
+
+            if errored and len(errored) == len(candidates):
+                raise ValidatorUnavailableError(
+                    f"All {len(candidates)} wildcard validations errored — validator appears unavailable"
+                )
+
         return {
             "validated_wildcards": validated,
             "rejected_wildcards": rejected,
+            "errored_wildcards": errored,
             "candidate_wildcards": []
         }
 
     async def regenerate(self, state: PlaylistState) -> Dict[str, Any]:
-        missing = state.target_wildcards - len(state.validated_wildcards)
+        # Errored candidates are already queued for retry in the next validate()
+        # pass — don't also ask the DJ to manufacture replacements for songs that
+        # were probably fine but hit a transient validator error.
+        missing = state.target_wildcards - len(state.validated_wildcards) - len(state.errored_wildcards)
+        missing = max(0, missing)
         logger.info(f"Regenerating {missing} missing wildcards (Attempt {state.attempts + 1})")
-        
+
         requested_count = round(missing * self.overprovision_factor)
         new_candidates = await self.llm_generator(
             state.event_description,
@@ -139,8 +160,8 @@ class PlaylistGraphBuilder:
             state.rejected_wildcards,
             state.db_songs,
             state.anchor_artists,
-        )
-        
+        ) if requested_count > 0 else []
+
         return {
             "candidate_wildcards": new_candidates,
             "attempts": state.attempts + 1
@@ -150,11 +171,11 @@ class PlaylistGraphBuilder:
         if len(state.validated_wildcards) >= state.target_wildcards:
             logger.info("Target wildcards reached. Proceeding to finalize.")
             return "merge_and_shuffle"
-        
+
         if state.attempts >= self.max_attempts:
             logger.info(f"Max attempts ({self.max_attempts}) reached. Proceeding to finalize.")
             return "merge_and_shuffle"
-        
+
         return "regenerate"
 
     async def merge_and_shuffle(self, state: PlaylistState) -> Dict[str, Any]:

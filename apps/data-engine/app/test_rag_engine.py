@@ -46,11 +46,13 @@ async def test_initial_fetch():
 
 @pytest.mark.asyncio
 async def test_validate():
+    from app.services.validator import ValidationResult
+
     # Only "Valid Song" passes validator, now async
-    async def mock_validator(song): 
+    async def mock_validator(song):
         await asyncio.sleep(0.01)
-        return song["title"] == "Valid Song"
-    
+        return ValidationResult.VALID if song["title"] == "Valid Song" else ValidationResult.INVALID
+
     builder = PlaylistGraphBuilder(None, None, mock_validator)
     
     state = PlaylistState(

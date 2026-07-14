@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Dict, Any
 
+from app.services.validator import ValidationResult
+
 logger = logging.getLogger(__name__)
 
 # `lyrics` holds a short, original mood-matched snippet per track (not the real
@@ -88,20 +90,21 @@ class RunResult:
     target_playlist_size: int = 20
 
 
-def stub_validator(song: Dict[str, Any], reject_rate: float = WILDCARD_REJECT_RATE) -> bool:
+def stub_validator(song: Dict[str, Any], reject_rate: float = WILDCARD_REJECT_RATE) -> ValidationResult:
     """Approximate Spotify URI resolution for AI-suggested wildcards.
 
     Real production resolves each new suggestion against the Spotify Search API and
     a fraction fail (hallucinated or unavailable tracks), triggering regeneration.
     A flat "always accept" stub made acceptance_rate a dead constant, so we reject a
-    deterministic ~reject_rate fraction (hash-based, reproducible across runs).
+    deterministic ~reject_rate fraction (hash-based, reproducible across runs). Eval
+    never simulates infra errors, so this stub only ever returns VALID/INVALID.
     """
     title = song.get("title", "").strip()
     artist = song.get("artist", "").strip()
     if not title or not artist:
-        return False
+        return ValidationResult.INVALID
     bucket = int(hashlib.md5(f"{title}::{artist}".encode()).hexdigest(), 16) % 100
-    return bucket >= int(reject_rate * 100)
+    return ValidationResult.VALID if bucket >= int(reject_rate * 100) else ValidationResult.INVALID
 
 
 async def run_pipeline(

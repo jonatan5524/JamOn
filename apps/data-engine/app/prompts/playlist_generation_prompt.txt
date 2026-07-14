@@ -13,20 +13,14 @@ I need a playlist for a specific event. I have performed a semantic search on th
 {rejected_str}
 
 **Instructions:**
-1. Generate exactly **{count}** NEW songs that perfectly fit the vibe and have a high alignment score (> 0.8) with the provided context and event description.
+1. Generate exactly **{count}** NEW songs that perfectly fit the vibe and event description.
 2. DO NOT include any songs from the "User's Matching Library (Context)".
 3. DO NOT include any songs from the "Rejected Songs to Avoid".
-4. Wildcard suggestions MUST be by artists similar to those in the "Artist Space" list above, or by the same artists, and have a high acceptance rate (> 0.8) among users with similar listening habits.
-5. Ensure the songs are real and exist on Spotify, and provide a clear and concise description of the generated playlist to improve user acceptance.
-6. Evaluate the generated playlist for diversity, novelty, and overall coherence with the provided context and event description.
-7. If the generated playlist does not meet the above criteria, repeat the generation process until a satisfactory playlist is produced, prioritizing the following:
-    a. Increase alignment score by 10% each iteration, up to a maximum of 0.9.
-    b. Increase acceptance rate by 5% each iteration, up to a maximum of 0.9.
-8. Implement a diversity penalty to discourage repetition of similar songs and artists, with a 20% reduction in score for each iteration where a song with a similarity score above 0.5 is added.
-9. Return the generated playlist as a JSON list of song suggestions.
-10. Ensure that each song suggestion in the returned list meets the above criteria.
+4. Wildcard suggestions MUST be by artists similar to those in the "Artist Space" list above, or by the same artists.
+5. Ensure the songs are real and exist on Spotify.
+6. Favor diversity across artists — avoid suggesting multiple songs by the same artist unless the Artist Space is very narrow.
 
-RETURN ONLY A RAW JSON LIST.
+RETURN ONLY A RAW JSON LIST. No description, no explanation, no markdown — just the JSON array.
 
 **Required Output Schema (JSON):**
 [

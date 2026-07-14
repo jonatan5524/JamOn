@@ -18,6 +18,15 @@ export class Song {
     @Column({ type: 'vector', nullable: true })
     embedding!: string | null;
 
+    @Column({ type: 'jsonb', name: 'vibe_tags', nullable: true })
+    vibeTags!: string[] | null;
+
+    @Column({ type: 'text', name: 'energy_desc', nullable: true })
+    energyDesc!: string | null;
+
+    @Column({ type: 'text', name: 'mood_desc', nullable: true })
+    moodDesc!: string | null;
+
     @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
     createdAt!: Date;
 }

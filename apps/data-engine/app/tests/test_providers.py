@@ -991,6 +991,7 @@ def test_college_dj_provider_passes_anchor_artists_in_prompt():
 @pytest.mark.asyncio
 async def test_playlist_graph_builder_passes_anchor_artists_to_llm():
     from app.workflows.playlist_generator import PlaylistGraphBuilder
+    from app.services.validator import ValidationResult
 
     captured_anchor_artists = []
 
@@ -1008,7 +1009,7 @@ async def test_playlist_graph_builder_passes_anchor_artists_to_llm():
         return db_songs
 
     async def fake_validator(song):
-        return True
+        return ValidationResult.VALID
 
     builder = PlaylistGraphBuilder(
         llm_generator=fake_llm_gen,
@@ -1023,6 +1024,97 @@ async def test_playlist_graph_builder_passes_anchor_artists_to_llm():
     assert "BLACKPINK" in captured_anchor_artists
     # Deduplicated: BTS appears twice in db_songs but once in anchor list
     assert captured_anchor_artists.count("BTS") == 1
+
+
+# ---------------------------------------------------------------------------
+# B9 fix: tri-state validator — errors must not poison the DJ's rejected list,
+# and must not be indistinguishable from a real "song doesn't exist" rejection.
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_validate_keeps_errored_candidates_out_of_rejected_list():
+    from app.workflows.playlist_generator import PlaylistGraphBuilder
+    from app.models.state import PlaylistState
+    from app.services.validator import ValidationResult
+
+    async def fake_validator(song):
+        if song["title"] == "Real Reject":
+            return ValidationResult.INVALID
+        if song["title"] == "Flaky":
+            return ValidationResult.ERROR
+        return ValidationResult.VALID
+
+    builder = PlaylistGraphBuilder(
+        llm_generator=None,
+        db_fetcher=None,
+        uri_validator=fake_validator,
+    )
+    state = PlaylistState(
+        event_description="test",
+        candidate_wildcards=[
+            {"title": "Real Reject", "artist": "A"},
+            {"title": "Flaky", "artist": "B"},
+            {"title": "Good Song", "artist": "C"},
+        ],
+    )
+    result = await builder.validate(state)
+
+    assert len(result["validated_wildcards"]) == 1
+    assert result["rejected_wildcards"] == ["Real Reject by A"]
+    assert len(result["errored_wildcards"]) == 1
+    assert result["errored_wildcards"][0]["title"] == "Flaky"
+
+
+@pytest.mark.asyncio
+async def test_validate_raises_when_all_candidates_error():
+    from app.workflows.playlist_generator import PlaylistGraphBuilder
+    from app.models.state import PlaylistState
+    from app.services.validator import ValidationResult
+    from app.providers.exceptions import ValidatorUnavailableError
+
+    async def always_erroring_validator(song):
+        return ValidationResult.ERROR
+
+    builder = PlaylistGraphBuilder(
+        llm_generator=None,
+        db_fetcher=None,
+        uri_validator=always_erroring_validator,
+    )
+    state = PlaylistState(
+        event_description="test",
+        candidate_wildcards=[{"title": "Song", "artist": "Artist"}],
+    )
+
+    with pytest.raises(ValidatorUnavailableError):
+        await builder.validate(state)
+
+
+@pytest.mark.asyncio
+async def test_regenerate_does_not_double_count_errored_wildcards():
+    from app.workflows.playlist_generator import PlaylistGraphBuilder
+    from app.models.state import PlaylistState
+
+    captured_counts = []
+
+    async def fake_llm_gen(event_desc, count, rejected, context, anchor_artists):
+        captured_counts.append(count)
+        return []
+
+    builder = PlaylistGraphBuilder(
+        llm_generator=fake_llm_gen,
+        db_fetcher=None,
+        uri_validator=None,
+        overprovision_factor=1.0,
+    )
+    state = PlaylistState(
+        event_description="test",
+        target_wildcards=5,
+        validated_wildcards=[{"title": "V1", "artist": "A"}],
+        errored_wildcards=[{"title": "E1", "artist": "B"}, {"title": "E2", "artist": "C"}],
+    )
+    await builder.regenerate(state)
+
+    # target(5) - validated(1) - errored(2) = 2 requested, not 4
+    assert captured_counts == [2]
 
 
 # ---------------------------------------------------------------------------
@@ -1057,8 +1149,10 @@ async def test_ingest_batch_enriches_before_tagging_and_batch_embeds():
     ]
 
     fake_tagged = [
-        {"title": "Song A", "artist": "Artist A", "embedding_text": "Song A vibe tags text"},
-        {"title": "Song B", "artist": "Artist B", "embedding_text": "Song B vibe tags text"},
+        {"title": "Song A", "artist": "Artist A", "energy_desc": "High-energy, driving",
+         "mood_desc": "Nostalgic, bittersweet", "embedding_text": "Song A vibe tags text"},
+        {"title": "Song B", "artist": "Artist B", "energy_desc": "Calm, sparse",
+         "mood_desc": "Defiant, triumphant", "embedding_text": "Song B vibe tags text"},
     ]
     fake_vectors = [[0.1] * 10, [0.2] * 10]
 
@@ -1100,6 +1194,8 @@ async def test_ingest_batch_enriches_before_tagging_and_batch_embeds():
         assert len(body) == 2
         assert body[0]["name"] == "Song A"
         assert body[0]["embedding"] == [0.1] * 10
+        assert body[0]["energy_desc"] == "High-energy, driving"
+        assert body[0]["mood_desc"] == "Nostalgic, bittersweet"
 
 
 def test_library_anchor_artists_dedupes_and_skips_empty():

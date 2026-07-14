@@ -21,4 +21,24 @@ export class CreateSongDto {
     @IsArray()
     @IsNumber({}, { each: true })
     embedding?: number[];
+
+    @ApiPropertyOptional({
+        example: ['nostalgic', 'upbeat', 'indie'],
+        description: 'Descriptive vibe tags produced by the data-engine tagger',
+        type: [String],
+    })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    vibeTags?: string[];
+
+    @ApiPropertyOptional({ example: 'High-energy, driving', description: "Description of the song's energy level" })
+    @IsOptional()
+    @IsString()
+    energyDesc?: string;
+
+    @ApiPropertyOptional({ example: 'Nostalgic, bittersweet', description: "Description of the song's mood" })
+    @IsOptional()
+    @IsString()
+    moodDesc?: string;
 }

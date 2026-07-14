@@ -20,6 +20,7 @@ from app.services.validator import validate_spotify_uri_via_nestjs
 from app.services.db import fetch_event_description, fetch_event_songs
 from app.workflows.playlist_generator import PlaylistGraphBuilder
 from app.core.tuned_params import load_tuned_params, scale_params_to_target, TARGET_PLAYLIST_SIZE
+from app.providers.exceptions import ValidatorUnavailableError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -101,6 +102,9 @@ async def recommend(http_request: Request, request: RecommendRequest):
             "anchor_artists": _library_anchor_artists(song_rows),
         })
         playlist = final_state.get("final_playlist", [])
+    except ValidatorUnavailableError as e:
+        logger.error(f"Spotify validator unavailable: {e}")
+        raise HTTPException(status_code=503, detail="Spotify validation service is unavailable")
     except Exception as e:
         logger.error(f"Graph execution error: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate playlist via LangGraph")
@@ -186,6 +190,12 @@ async def ingest_batch(http_request: Request, tracks: List[Track]):
     if not songs_with_features:
         logger.error("Tagging returned empty result")
         raise HTTPException(status_code=500, detail="Failed to tag songs")
+    if len(songs_with_features) != len(input_songs):
+        logger.error(
+            f"Tagging count mismatch — sent {len(input_songs)} songs, got back "
+            f"{len(songs_with_features)}; refusing to zip positionally"
+        )
+        raise HTTPException(status_code=500, detail="Tagging provider returned a mismatched song count")
     logger.info(f"Tagging complete — {len(songs_with_features)} songs tagged")
 
     texts = [build_embedding_text(song) for song in songs_with_features]
@@ -194,18 +204,25 @@ async def ingest_batch(http_request: Request, tracks: List[Track]):
     vectors = await asyncio.to_thread(providers.llm.embedding.embed_documents, texts)
     logger.info(f"Embeddings created — {len(vectors)} vectors")
 
+    # Identity (title/artist) always comes from our own input, never the tagger's
+    # echoed JSON — an LLM respelling ("Don't" -> "Dont", feat. normalization,
+    # casing) would otherwise make the downstream exact-match embedding update a
+    # silent no-op and leave the song permanently unembedded.
     results: List[IngestedSong] = []
-    for song, vector in zip(songs_with_features, vectors):
+    for original, tagged, vector in zip(input_songs, songs_with_features, vectors):
         if vector:
             results.append(
                 IngestedSong(
-                    name=song.get("title", ""),
-                    artist_name=song.get("artist", ""),
+                    name=original["title"],
+                    artist_name=original["artist"],
                     embedding=vector,
+                    vibe_tags=tagged.get("vibe_tags", []),
+                    energy_desc=tagged.get("energy_desc", ""),
+                    mood_desc=tagged.get("mood_desc", ""),
                 )
             )
         else:
-            logger.warning(f"No embedding for '{song.get('title', '?')}' by '{song.get('artist', '?')}' — skipping")
+            logger.warning(f"No embedding for '{original['title']}' by '{original['artist']}' — skipping")
 
     logger.info(f"===== /ingest-batch DONE — returning {len(results)} songs =====")
     return results

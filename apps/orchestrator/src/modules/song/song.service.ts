@@ -8,7 +8,7 @@ import { SimplifiedTrack } from '../spotify/spotify.types';
 
 const PG_UNIQUE_VIOLATION = '23505';
 
-const songKey = (name: string, artistName: string): string =>
+export const songKey = (name: string, artistName: string): string =>
     `${name.trim().toLowerCase()}::${artistName.trim().toLowerCase()}`;
 
 @Injectable()
@@ -108,7 +108,12 @@ export class SongService {
                 .map((dto) =>
                     this.songRepository.update(
                         { name: dto.name, artistName: dto.artistName },
-                        { embedding: JSON.stringify(dto.embedding) },
+                        {
+                            embedding: JSON.stringify(dto.embedding),
+                            ...(dto.vibeTags !== undefined && { vibeTags: dto.vibeTags }),
+                            ...(dto.energyDesc !== undefined && { energyDesc: dto.energyDesc }),
+                            ...(dto.moodDesc !== undefined && { moodDesc: dto.moodDesc }),
+                        },
                     ),
                 ),
         );

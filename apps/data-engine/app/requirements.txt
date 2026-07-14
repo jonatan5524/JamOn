@@ -9,3 +9,5 @@ langgraph
 httpx
 psycopg2-binary
 chromadb
+pytest
+pytest-asyncio

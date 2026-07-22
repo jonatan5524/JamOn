@@ -1,0 +1,21 @@
+# 5 Conclusion and Future Work
+
+## 5.1 Conclusion
+
+JamOn is a personalized music recommendation system that generates event-specific Spotify playlists by combining Retrieval-Augmented Generation with large language model text-ification. The central innovation replaces the deprecated Spotify audio-features endpoint with LLM-generated descriptive metadata (energy descriptions, mood descriptions, and vibe tags produced by Gemini Flash), which are embedded alongside scraped lyrics to enable semantic matching against natural-language event descriptions. This approach addresses the gap identified in Chapter 1: no existing tool converts a free-text event context and a personal listening library into a coherent, contextually appropriate playlist.
+
+The system fulfils all six objectives established at the outset of the project. A semantic indexing pipeline was constructed in which LLM-generated text tags replace numeric audio features. HyDE-based query expansion was implemented to bridge the semantic gap between short event descriptions and the richer embedding space of indexed songs. A LangGraph agentic workflow handles playlist generation, wildcard validation, and retry logic. Multi-provider LLM support (Gemini, NIM, and College/Ollama) enables cost-effective operation across deployment contexts. An automated two-phase evaluation harness tunes retrieval parameters and LLM prompts without manual intervention. Finally, an end-to-end web application connects a React client through a NestJS orchestrator to the FastAPI data engine and the Spotify API. Multi-user event support is fully implemented; the one remaining limitation is the Spotify OAuth developer-mode restriction of five approved users per Client ID (distinct from the general 25-user dev-mode allowlist cap), which prevents broader multi-user testing without per-user Client ID mapping.
+
+The evaluation harness achieved a best training composite score of 0.8027 and a holdout composite of 0.6872, with NIM Llama-3.3-70b serving as an automated playlist-quality judge. These results confirm that the two-phase optimization approach, combining exhaustive parameter grid search with iterative prompt hill-climbing, is capable of producing playlists that score well on both mechanical pipeline quality and subjective vibe alignment. The 0.1155 train–holdout gap reflects mild prompt specialization over the eight training events and constitutes the primary documented limitation of the current system.
+
+## 5.2 Future Work
+
+The most immediate priority is grounding the evaluation harness in real user data. The current evaluation uses songs seeded from a production event rather than a broad personal library; seeding `eval/fixtures/user_library.json` with real Spotify libraries via the `eval/seed_library.py` tooling would produce composite scores more representative of production conditions.
+
+The prompt optimization pipeline currently requires manual promotion of improved files from `eval/optimized/` to `app/prompts/` before they influence the live inference path. Automating this step would eliminate the risk of divergence between the evaluated and deployed configurations and enable continuous improvement without human intervention.
+
+The Spotify OAuth limitation (one Client ID supporting a maximum of five users in developer mode) requires a per-user Client ID mapping to scale multi-user events beyond the current cap. This is a platform constraint rather than an architectural one; the multi-user event logic itself is fully implemented.
+
+The evaluation harness uses an in-memory ChromaDB collection while production employs pgvector. Adding a pgvector evaluation mode would allow calibrated retrieval parameters to transfer directly to production without relying on the unverified assumption that cosine distance thresholds are equivalent across the two vector store implementations.
+
+Expanding the training event set beyond eight categories would reduce the train–holdout gap by forcing prompt mutations to generalize across a more diverse vocabulary. Planned frontend enhancements (per-participant contribution statistics and playlist history) would surface the system's personalization capabilities more directly to end users, providing visible evidence of how each participant's listening library contributed to the generated playlist.

@@ -5,7 +5,6 @@ from typing import List
 from google import genai
 from google.genai import types, errors
 from app.core.config import settings
-from app.core.resilience import with_resilience, AIServiceUnavailableError
 from app.providers.exceptions import TaggingError
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,6 @@ class GeminiTaggingProvider:
             http_options=types.HttpOptions(timeout=30_000),
         )
 
-    @with_resilience
     def tag_songs(self, songs: List[dict]) -> List[dict]:
         logger.info(f"[gemini-tagging] tagging {len(songs)} songs: {[s.get('title', '?') for s in songs]}")
         system_text = _load_prompt("audio_features_system.txt")
@@ -50,7 +48,7 @@ class GeminiTaggingProvider:
                 )
             return parsed
         except Exception as e:
-            if isinstance(e, (errors.APIError, AIServiceUnavailableError)):
+            if isinstance(e, errors.APIError):
                 raise
             logger.error(f"[gemini-tagging] tag_songs failed: {e}")
             raise TaggingError(str(e)) from e

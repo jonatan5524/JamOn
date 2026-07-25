@@ -49,12 +49,9 @@ def test_circuit_breaker_half_open_after_timeout():
 
 
 def test_retries_on_rate_limit():
-    """GeminiTaggingProvider.tag_songs retries on 429, succeeds on 3rd attempt."""
-    import json
-    from app.providers.llm.gemini.tagging import GeminiTaggingProvider
+    """GeminiEmbeddingProvider.embed_query retries on 429, succeeds on 3rd attempt."""
+    from app.providers.llm.gemini.embedding import GeminiEmbeddingProvider
 
-    tagged = [{"title": "Test", "artist": "Test", "energy_desc": "High",
-               "mood_desc": "Happy", "vibe_tags": ["Pop"], "embedding_text": "..."}]
     fail_response = errors.ClientError(
         code=429,
         response_json={
@@ -66,38 +63,37 @@ def test_retries_on_rate_limit():
         },
     )
     success_response = MagicMock()
-    success_response.text = json.dumps(tagged)
+    success_response.embeddings = [MagicMock(values=[0.1, 0.2, 0.3])]
 
     with patch("google.genai.Client"):
-        provider = GeminiTaggingProvider()
+        provider = GeminiEmbeddingProvider()
 
     provider._client = MagicMock()
-    provider._client.models.generate_content.side_effect = [
+    provider._client.models.embed_content.side_effect = [
         fail_response, fail_response, success_response
     ]
 
-    with patch('app.providers.llm.gemini.tagging._load_prompt', return_value="mock prompt {songs_list}"):
-        with patch('tenacity.nap.time.sleep', return_value=None):
-            result = provider.tag_songs([{"title": "Test", "artist": "Test"}])
+    with patch('tenacity.nap.time.sleep', return_value=None):
+        result = provider.embed_query("test text")
 
-    assert result[0]["title"] == "Test"
-    assert provider._client.models.generate_content.call_count == 3
+    assert result == [0.1, 0.2, 0.3]
+    assert provider._client.models.embed_content.call_count == 3
 
 
 def test_circuit_breaker_prevents_calls_when_open():
-    """When the circuit breaker is OPEN, tag_songs raises AIServiceUnavailableError without calling generate_content."""
-    from app.providers.llm.gemini.tagging import GeminiTaggingProvider
+    """When the circuit breaker is OPEN, embed_query raises AIServiceUnavailableError without calling embed_content."""
+    from app.providers.llm.gemini.embedding import GeminiEmbeddingProvider
 
     cb = CircuitBreaker()
     cb.state = "OPEN"
     cb.last_failure_time = time.time()
 
     with patch("google.genai.Client"):
-        provider = GeminiTaggingProvider()
+        provider = GeminiEmbeddingProvider()
 
     provider._client = MagicMock()
 
     with pytest.raises(AIServiceUnavailableError):
-        provider.tag_songs([{"title": "Test", "artist": "Test"}])
+        provider.embed_query("test text")
 
-    assert provider._client.models.generate_content.call_count == 0
+    assert provider._client.models.embed_content.call_count == 0

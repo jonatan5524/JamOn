@@ -5,7 +5,6 @@ from typing import List
 from google import genai
 from google.genai import types
 from app.core.config import settings
-from app.core.resilience import with_resilience
 from app.providers.exceptions import GenerationError
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,6 @@ class GeminiDJProvider:
             http_options=types.HttpOptions(timeout=30_000),
         )
 
-    @with_resilience
     def generate_playlist(
         self,
         event_description: str,

@@ -61,12 +61,16 @@ class ScoreResult:
     composite: float
 
 
+# % of needed wildcard slots filled with validated songs — checks whether the DJ/
+# validator actually delivered enough real suggestions to hit the fill goal.
 def compute_acceptance_rate(validated_count: int, target: int) -> float:
     if target == 0:
         return 0.0
     return min(validated_count / target, 1.0)
 
 
+# precision (how close the matches are) × recall (how many came back vs requested) —
+# checks whether the vector-store query returned enough genuinely relevant songs.
 def compute_retrieval_relevance(library_songs: List[Dict[str, Any]], n_results_requested: int = 15) -> float:
     if not library_songs:
         return 0.0
@@ -76,18 +80,16 @@ def compute_retrieval_relevance(library_songs: List[Dict[str, Any]], n_results_r
     return precision * recall
 
 
+# % of the target playlist length actually delivered — checks whether the pipeline
+# produced a full-size playlist, not just a small but high-quality one.
 def compute_size_fulfillment(total_songs: int, target_size: int) -> float:
-    """Fraction of the target playlist size actually delivered (capped at 1.0).
-
-    Penalises parameter combinations that cannot fill the playlist to the
-    desired length, ensuring the optimizer picks configs that produce
-    target_playlist_size songs, not just high-quality small playlists.
-    """
     if target_size <= 0:
         return 0.0
     return min(total_songs / target_size, 1.0)
 
 
+# Weighted sum of all four sub-scores into one optimizer target — checks overall
+# playlist quality, weighted toward alignment (judge opinion) over mechanical stats.
 def compute_composite(
     alignment: float,
     acceptance_rate: float,
@@ -102,6 +104,8 @@ def compute_composite(
     )
 
 
+# Asks an LLM judge to rate 0-10 how well the playlist fits the event — checks actual
+# musical/thematic fit, the one sub-score mechanical stats can't capture.
 def judge_alignment(event_description: str, playlist: List[Dict[str, Any]]) -> float:
     playlist_str = "\n".join(
         f"- {s.get('title', 'Unknown')} by {s.get('artist', 'Unknown')}"

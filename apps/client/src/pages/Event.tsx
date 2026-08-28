@@ -1,10 +1,12 @@
 import { useParams } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import EventCodeBadge, {
   EventCodeBadgeSkeleton,
 } from "@/components/event-detail/EventCodeBadge";
 import EventAccessDenied from "@/components/event-detail/EventAccessDenied";
 import EventNotFound from "@/components/event-detail/EventNotFound";
 import GeneratePlaylistCard from "@/components/event-detail/GeneratePlaylistCard";
+import GeneratingPlaylistCard from "@/components/event-detail/GeneratingPlaylistCard";
 import GroupMatchCard from "@/components/event-detail/GroupMatchCard";
 import InviteGuestsCard from "@/components/event-detail/InviteGuestsCard";
 import JamOnMixCard from "@/components/event-detail/JamOnMixCard";
@@ -14,7 +16,8 @@ import ParticleBackground from "@/components/layout/ParticleBackground";
 import TopNav from "@/components/layout/TopNav";
 import ErrorState from "@/components/ui/error-state";
 import { toast } from "sonner";
-import { useEvent, useGenerateEventPlaylist } from "@/hooks/use-event";
+import { useEvent } from "@/hooks/use-event";
+import { useGenerationPhase } from "@/hooks/use-generation-phase";
 import { ApiError } from "@/lib/api/index";
 
 /** Pull a human message out of an axios/ApiError, else a generic fallback. */
@@ -28,15 +31,28 @@ const getGenerateErrorMessage = (err: unknown): string => {
   return "Failed to generate playlist";
 };
 
+const fade = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.3 },
+};
+
 const Event = () => {
   const { eventId } = useParams<{ eventId: string }>();
   const { data: event, isLoading, isError, error, refetch, isFetching } =
     useEvent(eventId);
-  const generate = useGenerateEventPlaylist(eventId);
+  const { phase, start } = useGenerationPhase(eventId);
 
   const isNotFound = error instanceof ApiError && error.status === 404;
   const isForbidden = error instanceof ApiError && error.status === 403;
   const hasMix = Boolean(event?.mix);
+
+  const handleGenerate = () =>
+    start({
+      onSuccess: () => toast.success("Playlist generated"),
+      onError: (err) => toast.error(getGenerateErrorMessage(err)),
+    });
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-background via-background to-primary/20">
@@ -59,7 +75,7 @@ const Event = () => {
             <EventNotFound />
           ) : isForbidden ? (
             <EventAccessDenied />
-          ) : isError ? (
+          ) : isError && phase !== "generating" ? (
             <ErrorState
               error={error}
               title="Couldn't load this event"
@@ -98,40 +114,45 @@ const Event = () => {
               </div>
 
               <div className="flex flex-col gap-5">
-                {hasMix ? (
-                  <>
-                    <JamOnMixCard
-                      mix={event?.mix ?? null}
-                      participants={event?.participants ?? []}
-                      isLoading={isLoading}
-                      statisticsReady={event?.statisticsReady}
-                    />
-                    <GroupMatchCard
-                      percent={event?.playlistMatchPercent}
-                      isLoading={isLoading}
-                      statisticsReady={event?.statisticsReady}
-                    />
-                    <TasteContributionsCard
-                      contributions={event?.contributions ?? []}
-                      isLoading={isLoading}
-                      statisticsReady={event?.statisticsReady}
-                    />
-                  </>
-                ) : (
-                  <GeneratePlaylistCard
-                    participantCount={event?.participants.length ?? 0}
-                    isCreator={event?.viewerRole === "creator"}
-                    isLoading={isLoading}
-                    isGenerating={generate.isPending}
-                    onGenerate={() =>
-                      generate.mutate(undefined, {
-                        onSuccess: () => toast.success("Playlist generated"),
-                        onError: (err) =>
-                          toast.error(getGenerateErrorMessage(err)),
-                      })
-                    }
-                  />
-                )}
+                <AnimatePresence mode="wait" initial={false}>
+                  {phase === "generating" ? (
+                    <motion.div key="generating" {...fade}>
+                      <GeneratingPlaylistCard eventName={event?.name} />
+                    </motion.div>
+                  ) : hasMix ? (
+                    <motion.div
+                      key="mix"
+                      className="flex flex-col gap-5"
+                      {...fade}
+                    >
+                      <JamOnMixCard
+                        mix={event?.mix ?? null}
+                        participants={event?.participants ?? []}
+                        isLoading={isLoading}
+                        statisticsReady={event?.statisticsReady}
+                      />
+                      <GroupMatchCard
+                        percent={event?.playlistMatchPercent}
+                        isLoading={isLoading}
+                        statisticsReady={event?.statisticsReady}
+                      />
+                      <TasteContributionsCard
+                        contributions={event?.contributions ?? []}
+                        isLoading={isLoading}
+                        statisticsReady={event?.statisticsReady}
+                      />
+                    </motion.div>
+                  ) : (
+                    <motion.div key="idle" {...fade}>
+                      <GeneratePlaylistCard
+                        participantCount={event?.participants.length ?? 0}
+                        isCreator={event?.viewerRole === "creator"}
+                        isLoading={isLoading}
+                        onGenerate={handleGenerate}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
             </>
